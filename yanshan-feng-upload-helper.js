@@ -339,36 +339,37 @@
             });
 
             // 复制所有链接
-            this.copyAllBtn.addEventListener('click', () => {
-                const linkItems = this.linksList.querySelectorAll('.link-item');
-                const categoryTitles = this.linksList.querySelectorAll('.category-title');
+         this.copyAllBtn.addEventListener('click', () => {
+    let clipboardText = '';
+    let currentLang = '';
 
-                let clipboardText = '';
-                let currentCategory = '';
+    this.linksList.childNodes.forEach(child => {
+        if (!child.classList) return;
 
-                this.linksList.childNodes.forEach(child => {
-                    if (child.classList && child.classList.contains('category-title')) {
-                        currentCategory = child.textContent;
-                        clipboardText += `${currentCategory}\n`;
-                    } else if (child.classList && child.classList.contains('link-item')) {
-                        const languageCode = child.querySelector('.language-code')?.textContent || '';
-                        const url = child.querySelector('.link-url')?.textContent || '';
-
-                        if (languageCode && url) {
-                            clipboardText += `${languageCode}\n${url}\n`;
-                        } else {
-                            const name = child.querySelector('.link-name')?.textContent || '';
-                            if (name && url) {
-                                clipboardText += `${name}: ${url}\n`;
-                            }
-                        }
-                    }
-                });
-
-                GM_setClipboard(clipboardText.trim(), 'text');
-                this.showNotification('✅ 已复制所有链接到剪贴板（按品类分组）');
-            });
+        if (child.classList.contains('category-title')) {
+            clipboardText += '\n' + child.textContent.trim() + '\n';
+            currentLang = '';
         }
+        else if (child.classList.contains('language-code')) {
+            currentLang = child.textContent.trim();
+            clipboardText += currentLang + '\n';
+        }
+        else if (child.classList.contains('link-url')) {
+            clipboardText += child.textContent.trim() + '\n';
+        }
+        else if (child.classList.contains('link-item')) {
+            const name = child.querySelector('.link-name')?.textContent.trim() || '';
+            const url = child.querySelector('.link-url')?.textContent.trim() || '';
+            if (name && url) {
+                clipboardText += `${name}: ${url}\n`;
+            }
+        }
+    });
+
+    clipboardText = clipboardText.trim();
+    GM_setClipboard(clipboardText, 'text');
+    this.showNotification('✅ 已复制所有链接到剪贴板（按品类分组）');
+});
 
         resetProcess() {
             isProcessing = false;
@@ -472,36 +473,62 @@
         }
 
         addProcessedLink(fileName, url) {
-            const match = fileName.match(/^([A-Z]{2})([A-Za-z]+)(\d*)\./i);
-            if (!match) {
-                const linkItem = Utils.createElement('div', { class: 'link-item' });
-                const linkName = Utils.createElement('div', { class: 'link-name' }, fileName);
-                const linkUrl = Utils.createElement('div', { class: 'link-url' }, url);
-                Utils.appendChildren(linkItem, linkName, linkUrl);
-                this.linksList.appendChild(linkItem);
-                return;
-            }
+    const match = fileName.match(/^([A-Z]{2})([A-Za-z]+)(\d*)\./i);
+    if (!match) {
+        const linkItem = Utils.createElement('div', { class: 'link-item' });
+        const linkName = Utils.createElement('div', { class: 'link-name' }, fileName);
+        const linkUrl = Utils.createElement('div', { class: 'link-url' }, url);
+        Utils.appendChildren(linkItem, linkName, linkUrl);
+        this.linksList.appendChild(linkItem);
+        return;
+    }
 
-            const languageCode = match[1].toLowerCase();
-            const category = match[2].toLowerCase();
+    const languageCode = match[1].toLowerCase();
+    const category = match[2].toLowerCase();
 
-            if (!this.linksList.querySelector(`.category-title[data-category="${category}"]`)) {
-                const categoryTitle = Utils.createElement('div', {
-                    class: 'category-title',
-                    'data-category': category
-                }, category);
-                this.linksList.appendChild(categoryTitle);
-            }
+    const categorySelector = `.category-title[data-category="${category}"]`;
+    if (!this.linksList.querySelector(categorySelector)) {
+        const categoryTitle = Utils.createElement('div', {
+            class: 'category-title',
+            'data-category': category
+        }, category);
+        this.linksList.appendChild(categoryTitle);
+    }
 
-            const linkItem = Utils.createElement('div', { class: 'link-item' });
-            const languageCodeEl = Utils.createElement('div', { class: 'language-code' }, languageCode);
+    const categoryTitleEl = this.linksList.querySelector(categorySelector);
+    let nextSibling = categoryTitleEl.nextElementSibling;
+    let langGroupFound = false;
+
+    while (nextSibling && !nextSibling.matches(categorySelector)) {
+        if (
+            nextSibling.matches('.language-code') &&
+            nextSibling.textContent.trim() === languageCode
+        ) {
             const linkUrl = Utils.createElement('div', { class: 'link-url' }, url);
-
-            Utils.appendChildren(linkItem, languageCodeEl, linkUrl);
-            this.linksList.appendChild(linkItem);
-
-            this.linksList.scrollTop = this.linksList.scrollHeight;
+            this.linksList.insertBefore(linkUrl, nextSibling.nextSibling);
+            langGroupFound = true;
+            break;
         }
+        nextSibling = nextSibling.nextElementSibling;
+    }
+
+    if (!langGroupFound) {
+        const langEl = Utils.createElement('div', {
+            class: 'language-code'
+        }, languageCode);
+        const linkUrl = Utils.createElement('div', { class: 'link-url' }, url);
+
+        if (categoryTitleEl.nextElementSibling) {
+            this.linksList.insertBefore(langEl, categoryTitleEl.nextElementSibling);
+            this.linksList.insertBefore(linkUrl, langEl.nextElementSibling);
+        } else {
+            this.linksList.appendChild(langEl);
+            this.linksList.appendChild(linkUrl);
+        }
+    }
+
+    this.linksList.scrollTop = this.linksList.scrollHeight;
+}
 
         createLogSection(contentContainer) {
             this.logContainer = Utils.createElement('div', { class: 'log-container' });
