@@ -749,11 +749,11 @@
             await Utils.delay(5000);
             await robustCloseDialog();
 
-            controlPanel.updateFileStatus(fileName, 'completed', false);
+            controlPanel.updateFileStatus(fileName, STATUS.COMPLETED);
 
         } catch (error) {
             console.error(`处理文件 ${fileName} 时出错:`, error);
-            controlPanel.updateFileStatus(fileName, 'failed', false);
+            controlPanel.updateFileStatus(fileName, STATUS.FAILED);
         } finally {
             currentFileIndex++;
             processNextFile();
@@ -1032,5 +1032,11 @@
     const init = _.debounce(initScript, 500);
     window.addEventListener('load', init);
     document.addEventListener('DOMContentLoaded', init);
-    console.log("github脚本已加载")
+
+    // ============== 油猴脚本加载成功控制台输出 ==============
+    console.log('%c=== 燕山丰快捷上传助手 已成功加载 ===', 'color: #42b983; font-size: 14px; font-weight: bold;');
+    console.log('%c脚本托管地址：GitHub', 'color: #666; font-size: 12px;');
+    console.log('%c运行环境：YouTube Studio', 'color: #666; font-size: 12px;');
+    console.log('%c====================================', 'color: #42b983; font-size: 14px; font-weight: bold;');
+
 })();
