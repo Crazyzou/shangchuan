@@ -1,4 +1,4 @@
-// 燕山丰快捷上传 - 业务逻辑（GitHub 托管）
+// 燕山丰快捷上传 - 业务逻辑（托管于 GitHub）
 (function () {
     'use strict';
 
@@ -179,32 +179,39 @@
         }
 
         createPanel() {
+            // 创建面板容器
             this.panel = Utils.createElement('div', { id: 'yt-helper-panel', class: 'visible' });
+
+            // 创建面板头部
             const header = Utils.createElement('div', { class: 'panel-header' });
             const title = Utils.createElement('h3', { class: 'panel-title' }, 'YouTube 自动上传助手');
             const closeBtn = Utils.createElement('button', { class: 'panel-close' }, '×');
             Utils.appendChildren(header, title, closeBtn);
 
+            // 创建面板内容容器
             const content = Utils.createElement('div', { class: 'panel-content' });
 
-            // 最后上传时间
-            const lastUploadContainer = Utils.createElement('div', { class: 'last-upload-container' });
-            const lastUploadTitle = Utils.createElement('div', { class: 'last-upload-title' }, '频道最后成功上传时间');
-            this.lastUploadTimeEl = Utils.createElement('div', { class: 'last-upload-time' }, '暂无记录');
-            Utils.appendChildren(lastUploadContainer, lastUploadTitle, this.lastUploadTimeEl);
-            content.appendChild(lastUploadContainer);
-
-            // 文件列表
+// 最后上传时间显示区域
+const lastUploadContainer = Utils.createElement('div', { class: 'last-upload-container' });
+const lastUploadTitle = Utils.createElement('div', { class: 'last-upload-title' }, '频道最后成功上传时间');
+this.lastUploadTimeEl = Utils.createElement('div', { class: 'last-upload-time' }, '暂无记录');
+Utils.appendChildren(lastUploadContainer, lastUploadTitle, this.lastUploadTimeEl);
+content.appendChild(lastUploadContainer);
+        
+            // 创建文件列表区域
             const fileListContainer = Utils.createElement('div', { class: 'file-list-container' });
             const fileListTitle = Utils.createElement('div', { class: 'file-list-title' }, '待处理文件列表');
             this.fileListContainer = Utils.createElement('div', { class: 'file-list' });
+
             Utils.appendChildren(fileListContainer, fileListTitle, this.fileListContainer);
             content.appendChild(fileListContainer);
 
-            // 状态流程
+            // 创建状态跟踪区域
             const statusContainer = Utils.createElement('div', { class: 'status-container' });
             const statusTitle = Utils.createElement('div', { class: 'status-title' }, '上传处理流程');
             const statusList = Utils.createElement('div', { class: 'status-list' });
+
+            // 创建状态步骤
             const steps = [
                 { step: 'title', title: '标题处理', desc: '等待处理视频标题...' },
                 { step: 'kids', title: '儿童内容设置', desc: '等待选择非儿童内容...' },
@@ -214,6 +221,9 @@
                 { step: 'save', title: '保存视频', desc: '等待保存操作...' },
                 { step: 'close', title: '关闭面板', desc: '正在关闭面板并重置流程...' }
             ];
+
+
+            
             this.statusItems = {};
             steps.forEach((step, index) => {
                 const item = Utils.createElement('div', { class: 'status-item', 'data-step': step.step });
@@ -221,446 +231,872 @@
                 const content = Utils.createElement('div', { class: 'status-content' });
                 const titleEl = Utils.createElement('div', { class: 'status-step' }, step.title);
                 const descEl = Utils.createElement('div', { class: 'status-desc' }, step.desc);
+
                 Utils.appendChildren(content, titleEl, descEl);
                 Utils.appendChildren(item, icon, content);
                 statusList.appendChild(item);
-                this.statusItems[step.step] = { element: item, title: titleEl, desc: descEl, icon: icon };
+
+                this.statusItems[step.step] = {
+                    element: item,
+                    title: titleEl,
+                    desc: descEl,
+                    icon: icon
+                };
             });
+
             Utils.appendChildren(statusContainer, statusTitle, statusList);
             content.appendChild(statusContainer);
 
-            // 日志
+            // 创建日志区域
             this.createLogSection(content);
 
-            // 链接汇总
+            // 创建链接汇总区域
             const linksContainer = Utils.createElement('div', { class: 'links-container' });
             const linksTitle = Utils.createElement('div', { class: 'links-title' }, '处理完成的视频链接');
             const linksSummary = Utils.createElement('div', { class: 'links-summary' });
             this.linksList = Utils.createElement('div', { class: 'links-list' });
             this.copyAllBtn = Utils.createElement('button', { class: 'copy-all-btn' }, '复制所有链接到剪贴板');
+
             Utils.appendChildren(linksSummary, this.linksList, this.copyAllBtn);
             Utils.appendChildren(linksContainer, linksTitle, linksSummary);
             content.appendChild(linksContainer);
 
-            // 按钮
+            // 创建操作按钮区域
             const actions = Utils.createElement('div', { class: 'panel-actions' });
-            const startBtn = Utils.createElement('button', { class: 'panel-btn panel-btn-primary', id: 'start-process' }, '🚀 开始处理');
-            const resetBtn = Utils.createElement('button', { class: 'panel-btn panel-btn-secondary', id: 'reset-process' }, '🔄 重置流程');
+            const startBtn = Utils.createElement('button', {
+                class: 'panel-btn panel-btn-primary',
+                id: 'start-process'
+            }, '🚀 开始处理');
+            const resetBtn = Utils.createElement('button', {
+                class: 'panel-btn panel-btn-secondary',
+                id: 'reset-process'
+            }, '🔄 重置流程');
+
             Utils.appendChildren(actions, startBtn, resetBtn);
 
+            // 组装完整面板
             Utils.appendChildren(this.panel, header, content, actions);
             document.body.appendChild(this.panel);
+
+            // 启用拖动功能
             this.enableDrag(this.panel, header);
+
             this.loadLastUploadTime();
-        }
-
-        updateLastUploadTime() {
-            const now = new Date();
-            const timeStr = now.getFullYear() + '-' +
-                String(now.getMonth() + 1).padStart(2, '0') + '-' +
-                String(now.getDate()).padStart(2, '0') + ' ' +
-                String(now.getHours()).padStart(2, '0') + ':' +
-                String(now.getMinutes()).padStart(2, '0') + ':' +
-                String(now.getSeconds()).padStart(2, '0');
-            localStorage.setItem('ytLastSuccessUploadTime', timeStr);
-            this.lastUploadTimeEl.textContent = timeStr;
-        }
-
-        loadLastUploadTime() {
-            const saved = localStorage.getItem('ytLastSuccessUploadTime');
-            if (saved) this.lastUploadTimeEl.textContent = saved;
         }
 
         enableDrag(element, dragHandle) {
             let isDragging = false;
             let offsetX, offsetY;
+
             dragHandle.addEventListener('mousedown', (e) => {
                 if (e.target.closest('.panel-close')) return;
+
                 isDragging = true;
-                const rect = element.getBoundingClientRect();
-                offsetX = e.clientX - rect.left;
-                offsetY = e.clientY - rect.top;
+                const elementRect = element.getBoundingClientRect();
+                offsetX = e.clientX - elementRect.left;
+                offsetY = e.clientY - elementRect.top;
+
                 element.style.transition = 'none';
+                element.style.willChange = 'transform';
                 document.body.style.userSelect = 'none';
+
                 e.preventDefault();
             });
-            const move = (e) => {
+
+            const handleMove = (e) => {
                 if (!isDragging) return;
+
                 requestAnimationFrame(() => {
                     const x = e.clientX - offsetX;
                     const y = e.clientY - offsetY;
+
                     const maxX = window.innerWidth - element.offsetWidth;
                     const maxY = window.innerHeight - element.offsetHeight;
-                    element.style.left = Math.min(Math.max(0, x), maxX) + 'px';
-                    element.style.top = Math.min(Math.max(0, y), maxY) + 'px';
+
+                    element.style.left = `${Math.min(Math.max(0, x), maxX)}px`;
+                    element.style.top = `${Math.min(Math.max(0, y), maxY)}px`;
                     element.style.right = 'auto';
                 });
-            };
-            const stop = () => {
-                isDragging = false;
-                element.style.transition = 'all 0.3s ease';
-                document.body.style.userSelect = '';
-            };
-            document.addEventListener('mousemove', move);
-            document.addEventListener('mouseup', stop);
+            }
+
+            const stopMoving = () => {
+                if (isDragging) {
+                    isDragging = false;
+                    element.style.transition = 'all 0.3s ease';
+                    element.style.willChange = 'auto';
+                    document.body.style.userSelect = '';
+                }
+            }
+
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('mouseup', stopMoving);
+
+            dragHandle.addEventListener('dragstart', (e) => {
+                e.preventDefault();
+            });
         }
 
         setupEventListeners() {
             this.panel.addEventListener('click', (e) => {
-                const t = e.target;
-                if (t.closest('.panel-close')) this.panel.classList.remove('visible');
-                else if (t.closest('#start-process')) startProcessing();
-                else if (t.closest('#reset-process')) this.resetProcess();
+                const target = e.target;
+
+                if (target.closest('.panel-close')) {
+                    this.panel.classList.remove('visible');
+                } else if (target.closest('#start-process')) {
+                    startProcessing();
+                } else if (target.closest('#reset-process')) {
+                    this.resetProcess();
+                }
             });
-            this.copyAllBtn.addEventListener('click', () => {
-                let txt = '';
-                this.linksList.childNodes.forEach(c => {
-                    if (!c.classList) return;
-                    if (c.classList.contains('category-title')) txt += '\n' + c.textContent.trim() + '\n';
-                    else if (c.classList.contains('language-code')) txt += c.textContent.trim() + '\n';
-                    else if (c.classList.contains('link-url')) txt += c.textContent.trim() + '\n';
-                    else if (c.classList.contains('link-item')) {
-                        const n = c.querySelector('.link-name')?.textContent.trim() || '';
-                        const u = c.querySelector('.link-url')?.textContent.trim() || '';
-                        if (n && u) txt += `${n}: ${u}\n`;
-                    }
-                });
-                GM_setClipboard(txt.trim(), 'text');
-                this.showNotification('✅ 已复制所有链接到剪贴板');
-            });
+
+            // 复制所有链接
+         this.copyAllBtn.addEventListener('click', () => {
+    let clipboardText = '';
+    let currentLang = '';
+
+// 更新并保存最后上传时间
+updateLastUploadTime() {
+  const now = new Date();
+  const timeStr = now.getFullYear() + '-' +
+    String(now.getMonth() + 1).padStart(2, '0') + '-' +
+    String(now.getDate()).padStart(2, '0') + ' ' +
+    String(now.getHours()).padStart(2, '0') + ':' +
+    String(now.getMinutes()).padStart(2, '0') + ':' +
+    String(now.getSeconds()).padStart(2, '0');
+
+  // 存到本地
+  localStorage.setItem('ytLastSuccessUploadTime', timeStr);
+
+  // 更新面板显示
+  this.lastUploadTimeEl.textContent = timeStr;
+}
+
+// 初始化时读取本地记录
+loadLastUploadTime() {
+  const saved = localStorage.getItem('ytLastSuccessUploadTime');
+  if (saved) {
+    this.lastUploadTimeEl.textContent = saved;
+  }
+}
+             
+    this.linksList.childNodes.forEach(child => {
+        if (!child.classList) return;
+
+        if (child.classList.contains('category-title')) {
+            clipboardText += '\n' + child.textContent.trim() + '\n';
+            currentLang = '';
         }
+        else if (child.classList.contains('language-code')) {
+            currentLang = child.textContent.trim();
+            clipboardText += currentLang + '\n';
+        }
+        else if (child.classList.contains('link-url')) {
+            clipboardText += child.textContent.trim() + '\n';
+        }
+        else if (child.classList.contains('link-item')) {
+            const name = child.querySelector('.link-name')?.textContent.trim() || '';
+            const url = child.querySelector('.link-url')?.textContent.trim() || '';
+            if (name && url) {
+                clipboardText += `${name}: ${url}\n`;
+            }
+        }
+    });
+
+    clipboardText = clipboardText.trim();
+    GM_setClipboard(clipboardText, 'text');
+    this.showNotification('✅ 已复制所有链接到剪贴板（按品类分组）');
+});
 
         resetProcess() {
             isProcessing = false;
             titleProcessed = false;
             currentFileIndex = 0;
             processedLinks = [];
+
             this.linksList.innerHTML = '';
-            Object.keys(this.statusItems).forEach(s => {
-                const i = this.statusItems[s];
-                i.element.classList.remove('active', 'completed', 'failed');
-                i.icon.textContent = Object.keys(this.statusItems).indexOf(s) + 1;
-                i.desc.textContent = '等待处理...';
+
+            Object.keys(this.statusItems).forEach(step => {
+                const item = this.statusItems[step];
+                item.element.classList.remove(STATUS.ACTIVE, STATUS.COMPLETED, STATUS.FAILED);
+                item.icon.textContent = (Object.keys(this.statusItems).indexOf(step) + 1).toString();
+                item.desc.textContent = '等待处理...';
             });
-            this.showNotification('🔄 流程已重置');
+
+            Object.keys(this.fileItems).forEach(fileName => {
+                const item = this.fileItems[fileName];
+                item.element.classList.remove('active', 'completed', 'failed');
+                item.status.textContent = '';
+            });
+
+            this.showNotification('🔄  流程已重置');
         }
 
         updateFileList(files) {
-            this.fileListContainer.innerHTML = '';
+            while (this.fileListContainer.firstChild) {
+                this.fileListContainer.removeChild(this.fileListContainer.firstChild);
+            }
             this.fileItems = {};
-            files.forEach(f => {
-                const item = Utils.createElement('div', { class: 'file-item', 'data-filename': f.name });
-                const name = Utils.createElement('div', { class: 'file-name' }, f.name);
-                const status = Utils.createElement('div', { class: 'file-status' });
-                Utils.appendChildren(item, name, status);
-                this.fileListContainer.appendChild(item);
-                this.fileItems[f.name] = { element: item, name, status };
-                this.updateFileStatus(f.name, Utils.normalizeStatus(f.status));
+
+            files.forEach(file => {
+                const fileItem = Utils.createElement('div', {
+                    class: 'file-item',
+                    'data-filename': file.name
+                });
+
+                const fileName = Utils.createElement('div', { class: 'file-name' }, file.name);
+                const fileStatus = Utils.createElement('div', { class: 'file-status' }, file.status);
+
+                Utils.appendChildren(fileItem, fileName, fileStatus);
+                this.fileListContainer.appendChild(fileItem);
+
+                this.fileItems[file.name] = {
+                    element: fileItem,
+                    name: fileName,
+                    status: fileStatus
+                };
+
+                this.updateFileStatus(file.name, Utils.normalizeStatus(file.status));
             });
         }
 
-        updateFileStatus(name, status) {
-            const i = this.fileItems[name];
-            if (!i) return;
-            i.element.classList.remove('active', 'completed', 'failed', 'pending', 'uploading', 'processing');
-            i.element.classList.add(status);
-            i.status.textContent = Utils.getStatusDisplayText(status);
+        updateFileStatus(fileName, status) {
+            const fileItem = this.fileItems[fileName];
+            if (!fileItem) return;
+
+            fileItem.element.classList.remove(
+                STATUS.ACTIVE,
+                STATUS.COMPLETED,
+                STATUS.FAILED,
+                STATUS.PENDING,
+                STATUS.UPLOADING,
+                STATUS.PROCESSING
+            );
+
+            fileItem.element.classList.add(status);
+            fileItem.status.textContent = Utils.getStatusDisplayText(status);
         }
 
-        updateStatus(step, status, desc = '') {
-            const i = this.statusItems[step];
-            if (!i) return;
-            i.element.classList.remove('active', 'completed', 'failed');
-            i.desc.textContent = desc || i.desc.textContent;
-            if (status === 'active') { i.element.classList.add('active'); }
-            else if (status === 'completed') { i.element.classList.add('completed'); i.icon.textContent = '✓'; }
-            else if (status === 'failed') { i.element.classList.add('failed'); i.icon.textContent = '×'; }
+        updateStatus(step, status, description = '') {
+            const item = this.statusItems[step];
+            if (!item) return;
+
+            item.element.classList.remove(STATUS.ACTIVE, STATUS.COMPLETED, STATUS.FAILED);
+            item.desc.textContent = description || item.desc.textContent;
+
+            if (status === STATUS.ACTIVE) {
+                item.element.classList.add(STATUS.ACTIVE);
+                item.desc.textContent = description || '处理中...';
+            } else if (status === STATUS.COMPLETED) {
+                item.element.classList.add(STATUS.COMPLETED);
+                item.icon.textContent = '✓';
+                item.desc.textContent = description || '已完成';
+            } else if (status === STATUS.FAILED) {
+                item.element.classList.add(STATUS.FAILED);
+                item.icon.textContent = '×';
+                item.desc.textContent = description || '失败';
+            }
+
+            item.element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        showNotification(msg) {
-            const n = Utils.createElement('div', { class: 'panel-notification' }, msg);
-            document.body.appendChild(n);
-            setTimeout(() => n.remove(), 3000);
+        showNotification(message) {
+            const notification = Utils.createElement('div', { class: 'panel-notification' }, message);
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
         }
 
-        addProcessedLink(file, url) {
-            const m = file.match(/^([A-Z]{2})([A-Za-z]+)(\d*)\./i);
-            if (!m) {
-                const li = Utils.createElement('div', { class: 'link-item' });
-                const n = Utils.createElement('div', { class: 'link-name' }, file);
-                const u = Utils.createElement('div', { class: 'link-url' }, url);
-                Utils.appendChildren(li, n, u);
-                this.linksList.appendChild(li);
-                return;
-            }
-            const lang = m[1].toLowerCase();
-            const cat = m[2].toLowerCase();
-            const sel = `.category-title[data-category="${cat}"]`;
-            if (!this.linksList.querySelector(sel)) {
-                const t = Utils.createElement('div', { class: 'category-title', 'data-category': cat }, cat);
-                this.linksList.appendChild(t);
-            }
-            const catEl = this.linksList.querySelector(sel);
-            let langEl = null;
-            let s = catEl.nextElementSibling;
-            while (s && !s.classList.contains('category-title')) {
-                if (s.classList.contains('language-code') && s.textContent.trim() === lang) {
-                    langEl = s;
-                    break;
-                }
-                s = s.nextElementSibling;
-            }
-            if (langEl) {
-                const u = Utils.createElement('div', { class: 'link-url' }, url);
-                this.linksList.insertBefore(u, langEl.nextSibling);
-            } else {
-                const l = Utils.createElement('div', { class: 'language-code' }, lang);
-                const u = Utils.createElement('div', { class: 'link-url' }, url);
-                this.linksList.insertBefore(l, catEl.nextElementSibling);
-                this.linksList.insertBefore(u, l.nextElementSibling);
-            }
-        }
+        addProcessedLink(fileName, url) {
+    const match = fileName.match(/^([A-Z]{2})([A-Za-z]+)(\d*)\./i);
+    if (!match) {
+        const linkItem = Utils.createElement('div', { class: 'link-item' });
+        const linkName = Utils.createElement('div', { class: 'link-name' }, fileName);
+        const linkUrl = Utils.createElement('div', { class: 'link-url' }, url);
+        Utils.appendChildren(linkItem, linkName, linkUrl);
+        this.linksList.appendChild(linkItem);
+        return;
+    }
 
-        createLogSection(container) {
+    const languageCode = match[1].toLowerCase();
+    const category = match[2].toLowerCase();
+    const catSelector = `.category-title[data-category="${category}"]`;
+
+    // 先创建分类标题
+    if (!this.linksList.querySelector(catSelector)) {
+        const catTitle = Utils.createElement('div', {
+            class: 'category-title',
+            'data-category': category
+        }, category);
+        this.linksList.appendChild(catTitle);
+    }
+
+    // 找到当前分类下，有没有已经存在的相同语言标签
+    const catTitleEl = this.linksList.querySelector(catSelector);
+    let langEl = null;
+    let sibling = catTitleEl.nextElementSibling;
+
+    while (sibling && !sibling.classList.contains('category-title')) {
+        if (sibling.classList.contains('language-code') && sibling.textContent.trim() === languageCode) {
+            langEl = sibling;
+            break;
+        }
+        sibling = sibling.nextElementSibling;
+    }
+
+    // 有语言：只加链接
+    if (langEl) {
+        const linkUrl = Utils.createElement('div', { class: 'link-url' }, url);
+        this.linksList.insertBefore(linkUrl, langEl.nextSibling);
+    }
+    // 没有语言：新建语言 + 链接
+    else {
+        const newLang = Utils.createElement('div', { class: 'language-code' }, languageCode);
+        const linkUrl = Utils.createElement('div', { class: 'link-url' }, url);
+        this.linksList.insertBefore(newLang, catTitleEl.nextElementSibling);
+        this.linksList.insertBefore(linkUrl, newLang.nextElementSibling);
+    }
+
+    this.linksList.scrollTop = this.linksList.scrollHeight;
+}
+
+        createLogSection(contentContainer) {
             this.logContainer = Utils.createElement('div', { class: 'log-container' });
-            const title = Utils.createElement('div', { class: 'log-title' }, '处理日志');
+            const logTitle = Utils.createElement('div', { class: 'log-title' }, '处理日志');
             this.logToggle = Utils.createElement('span', { class: 'log-toggle' }, '显示详细');
             this.logContent = Utils.createElement('div', { class: 'log-content' });
-            Utils.appendChildren(title, this.logToggle);
-            Utils.appendChildren(this.logContainer, title, this.logContent);
-            const links = container.querySelector('.links-container');
-            if (links) container.insertBefore(this.logContainer, links);
-            else container.appendChild(this.logContainer);
-            title.addEventListener('click', () => {
+
+            Utils.appendChildren(logTitle, this.logToggle);
+            Utils.appendChildren(this.logContainer, logTitle, this.logContent);
+
+            let linksContainer = contentContainer.querySelector('.links-container');
+            if (!linksContainer) {
+                contentContainer.appendChild(this.logContainer);
+            } else {
+                if (linksContainer.parentNode === contentContainer) {
+                    contentContainer.insertBefore(this.logContainer, linksContainer);
+                } else {
+                    contentContainer.appendChild(this.logContainer);
+                }
+            }
+
+            logTitle.addEventListener('click', () => {
                 this.logContent.classList.toggle('expanded');
                 this.logToggle.textContent = this.logContent.classList.contains('expanded') ? '隐藏详细' : '显示详细';
             });
         }
 
-        addLog(msg, type = 'info') {
-            const item = Utils.createElement('div', { class: `log-item ${type}` }, `[${new Date().toLocaleTimeString()}] ${msg}`);
-            this.logContent.appendChild(item);
+        addLog(message, type = 'info') {
+            const logItem = Utils.createElement('div', {
+                class: `log-item ${type}`
+            }, `[${new Date().toLocaleTimeString()}] ${message}`);
+
+            this.logContent.appendChild(logItem);
+
+            if (this.logContent.classList.contains('expanded')) {
+                this.logContent.scrollTop = this.logContent.scrollHeight;
+            }
+
+            if (type === 'error') {
+                this.logContent.classList.add('expanded');
+                this.logToggle.textContent = '隐藏详细';
+            }
         }
 
-        addAILog(msg, type = 'info') { this.addLog(msg, type); }
+        addAILog(message, type = 'info') {
+            this.addLog(message, type);
+        }
     }
 
-    // ===================== AI 标题处理器 =====================
+    // ===================== AI标题处理器 =====================
     class AITitleProcessor {
         constructor() {
             this.apiKey = "6869437c-0d6b-42ee-8c6d-4c865ca9b475";
             this.apiUrl = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
         }
-        async processTitle(title, panel) {
-            panel.addAILog('开始解析标题...');
-            const { languageCode, appName } = this.extract(title);
-            const langName = LANGUAGE_MAP[languageCode] || languageCode;
-            const prompt = this.getDefaultPrompt().replace(/{appName}/g, appName).replace(/{languageName}/g, langName);
-            const ai = await this.request(prompt);
-            return `${languageCode}）${ai}`;
+
+        async processTitle(originalTitle, controlPanel) {
+            try {
+                controlPanel.addAILog('开始解析标题...');
+
+                const { languageCode, appName } = this.extractTitleParts(originalTitle);
+                if (!languageCode || !appName) {
+                    throw new Error('标题格式不符合要求（示例: ESCUSTOMUSE1）');
+                }
+
+                const languageName = LANGUAGE_MAP[languageCode] || languageCode;
+                controlPanel.addAILog(`识别到: 语言=${languageName}, 应用=${appName}`);
+
+                const prompt = this.getDefaultPromptTemplate()
+                    .replace(/{appName}/g, appName)
+                    .replace(/{languageName}/g, languageName)
+                    .replace(/{languageCode}/g, languageCode);
+
+                controlPanel.addAILog(`请求AI生成标题: ${prompt}`);
+
+                const aiTitle = await this.getAITitle(prompt);
+                controlPanel.addAILog(`AI 生成标题: ${aiTitle}`);
+
+                return `${languageCode}）${aiTitle}`;
+            } catch (error) {
+                controlPanel.addAILog(`处理失败: ${error.message}`, 'error');
+                throw error;
+            }
         }
-        getDefaultPrompt() {
-            return `为{appName} App生成一个吸引人的{languageName}推广标题+短文案，15字内，直接给结果。`;
+
+        getDefaultPromptTemplate() {
+            return `为{appName} App生成一个吸引人的{languageName}推广标题，并附上一句简短的推广文案。要求：
+1. 标题要简洁有力，突出App的核心价值或独特卖点
+2. 推广文案要能激发用户兴趣，控制在15字以内
+3. 直接给出结果，不需要额外解释
+
+示例格式:
+[吸引人的标题] - [简短有力的推广文案]`;
         }
-        extract(t) {
-            const clean = t.replace(/[^a-zA-Z0-9]/g, '');
-            const m = clean.match(/^([A-Z]{2})([A-Za-z]+)(\d*)$/i);
-            if (!m) throw new Error('格式错误');
-            return { languageCode: m[1].toUpperCase(), appName: m[2].toLowerCase() };
+
+        extractTitleParts(title) {
+            const cleanTitle = title.replace(/[^a-zA-Z0-9]/g, '');
+            const match = cleanTitle.match(/^([A-Z]{2})([A-Za-z]+)(\d*)$/i);
+
+            if (!match) {
+                throw new Error(`标题格式无效，示例: "ESCUSTOMUSE1" → "ES"（语言）+ "CUSTOMUSE"（App）+ "1"（序号）`);
+            }
+
+            const languageCode = match[1].toUpperCase();
+            const appName = match[2].replace(/[^a-zA-Z]/g, '').toLowerCase();
+            const number = match[3] || '';
+
+            return { languageCode, appName, number };
         }
-        async request(p) {
-            const res = await fetch(this.apiUrl, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ model: "doubao-1-5-pro-32k-250115", messages: [{ role: "user", content: p }] })
+
+        async getAITitle(prompt) {
+            const data = {
+                model: "doubao-1-5-pro-32k-250115",
+                messages: [{ role: "user", content: prompt }]
+            };
+
+            const headers = {
+                Authorization: `Bearer ${this.apiKey}`,
+                "Content-Type": "application/json"
+            };
+
+            const response = await fetch(this.apiUrl, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(data)
             });
-            const j = await res.json();
-            return j.choices?.[0]?.message?.content?.trim() || '标题生成失败';
+
+            if (!response.ok) {
+                throw new Error(`AI请求失败: ${response.status}`);
+            }
+
+            const result = await response.json();
+            const content = result.choices?.[0]?.message?.content || '';
+            return content.trim();
         }
     }
 
-    // ===================== 主逻辑 =====================
-    let isProcessing = false, titleProcessed = false, currentFileIndex = 0, processedLinks = [];
+    // ===================== 主逻辑部分 =====================
+    let isProcessing = false;
+    let titleProcessed = false;
+    let currentFileIndex = 0;
+    let processedLinks = [];
     let controlPanel = null;
 
-    function init() {
-        if (location.hostname !== 'studio.youtube.com') return;
+    function initScript() {
+        if (window.location.hostname !== 'studio.youtube.com') return;
+
         controlPanel = new ControlPanel();
-        removeLogout();
-        observe();
-        monitor();
+        removeLogoutButton();
+        setupMutationObserver();
+        monitorUploads();
     }
 
-    function monitor() {
-        setInterval(() => {
-            const items = Utils.safeQuerySelectorAll(DOM_SELECTORS.PROGRESS_ITEM);
-            if (items.length === 0) return;
-            const files = items.map(i => {
-                const name = i.querySelector('.progress-title').textContent.trim();
-                const status = i.querySelector('.progress-status-text').textContent.trim();
-                const bar = i.querySelector('.progress-bar');
-                const done = bar && bar.style.width === '100%';
-                return { name, status, element: i, isUploaded: done };
-            });
-            controlPanel.updateFileList(files);
-            files.forEach(f => {
-                if (f.isUploaded && !processedLinks.some(x => x.name === f.name) && !isProcessing) startProcessing();
-            });
+    function monitorUploads() {
+        const checkInterval = setInterval(() => {
+            const progressItems = Utils.safeQuerySelectorAll(DOM_SELECTORS.PROGRESS_ITEM);
+
+            if (progressItems.length > 0) {
+                const newFiles = progressItems.map(item => {
+                    const name = item.querySelector('.progress-title').textContent.trim();
+                    const status = item.querySelector('.progress-status-text').textContent.trim();
+                    const progressBar = item.querySelector('.progress-bar');
+                    const isUploaded = progressBar && progressBar.style.width === '100%';
+                    return { name, status, element: item, isUploaded };
+                });
+
+                controlPanel.updateFileList(newFiles);
+
+                newFiles.forEach(file => {
+                    if (file.isUploaded && !processedLinks.some(l => l.name === file.name)) {
+                        if (!isProcessing) {
+                            startProcessing();
+                        }
+                    }
+                });
+            }
         }, 2000);
     }
 
     function startProcessing() {
         if (isProcessing) return;
+
         isProcessing = true;
+        const progressItems = Utils.safeQuerySelectorAll(DOM_SELECTORS.PROGRESS_ITEM);
+
+        if (progressItems.length === 0) {
+            controlPanel.showNotification('⚠️  未找到上传文件');
+            isProcessing = false;
+            return;
+        }
+
         currentFileIndex = 0;
-        processNext();
+        processNextFile();
     }
 
-    async function processNext() {
-        const items = Utils.safeQuerySelectorAll(DOM_SELECTORS.PROGRESS_ITEM);
-        if (currentFileIndex >= items.length) { isProcessing = false; controlPanel.showNotification('✅ 全部完成'); return; }
-        const item = items[currentFileIndex];
-        const name = item.querySelector('.progress-title').textContent.trim();
-        if (processedLinks.some(x => x.name === name)) { currentFileIndex++; processNext(); return; }
-        controlPanel.updateFileStatus(name, 'processing');
-        const edit = item.querySelector(DOM_SELECTORS.EDIT_BUTTON);
-        if (edit) { edit.click(); await Utils.delay(1000); await processFile(name); }
-        else { controlPanel.updateFileStatus(name, 'failed'); currentFileIndex++; processNext(); }
+    async function processNextFile() {
+        const progressItems = Utils.safeQuerySelectorAll(DOM_SELECTORS.PROGRESS_ITEM);
+
+        if (currentFileIndex >= progressItems.length) {
+            isProcessing = false;
+
+            const allLinks = processedLinks.map(l => `${l.name}:  ${l.url}`).join('\n');
+            GM_setClipboard(allLinks, 'text');
+
+            controlPanel.showNotification('✅  所有文件处理完成，链接已复制到剪贴板');
+            return;
+        }
+
+        const currentItem = progressItems[currentFileIndex];
+        const fileName = currentItem.querySelector('.progress-title').textContent.trim();
+
+        if (processedLinks.some(l => l.name === fileName)) {
+            currentFileIndex++;
+            processNextFile();
+            return;
+        }
+
+        controlPanel.updateFileStatus(fileName, 'processing', true);
+
+        const editButton = currentItem.querySelector(DOM_SELECTORS.EDIT_BUTTON);
+        if (editButton) {
+            editButton.click();
+            await Utils.delay(DELAY.LONG);
+            await processCurrentFile(fileName);
+        } else {
+            controlPanel.updateFileStatus(fileName, 'failed', false);
+            currentFileIndex++;
+            processNextFile();
+        }
     }
 
-    async function processFile(name) {
+    async function processCurrentFile(fileName) {
         try {
-            await autoTitle(name);
-            await noKids();
-            await next3();
-            await unlisted();
-            const link = await getLink();
-            await save();
-            processedLinks.push({ name, url: link });
-            controlPanel.addProcessedLink(name, link);
+            await autoProcessTitle(fileName);
+            await selectNotForKids();
+            await clickContinueThreeTimes();
+            await selectUnlistedOption();
+            const link = await extractVideoLink();
+            await clickSaveButton();
+
+
+            processedLinks.push({ name: fileName, url: link });
+            controlPanel.addProcessedLink(fileName, link);
+
             await Utils.delay(5000);
-            await closeDialog();
-            controlPanel.updateFileStatus(name, 'completed');
+            await robustCloseDialog();
+
+            controlPanel.updateFileStatus(fileName, STATUS.COMPLETED);
+
             controlPanel.updateLastUploadTime();
-        } catch (e) {
-            console.error(e);
-            controlPanel.updateFileStatus(name, 'failed');
+
+        } catch (error) {
+            console.error(`处理文件 ${fileName} 时出错:`, error);
+            controlPanel.updateFileStatus(fileName, STATUS.FAILED);
         } finally {
             currentFileIndex++;
-            processNext();
+            processNextFile();
         }
     }
 
-    async function autoTitle(file) {
-        for (let i = 0; i < 10; i++) {
-            const box = document.querySelector(DOM_SELECTORS.TITLE_TEXTBOX);
-            if (!box) { await Utils.delay(500); continue; }
-            const val = (box.value || box.textContent || '').trim();
-            if (val.includes('）')) { controlPanel.updateStatus('title', 'completed', '已处理'); return; }
-            try {
-                const ai = await controlPanel.aiProcessor.processTitle(val || file, controlPanel);
-                if (box.value) { box.value = ai; box.dispatchEvent(new Event('input', { bubbles: true })); }
-                else { box.textContent = ai; box.dispatchEvent(new Event('input', { bubbles: true })); }
-                controlPanel.updateStatus('title', 'completed', ai);
-                return;
-            } catch (e) {
-                const m = val.match(/^([A-Z]{2})/);
-                if (m) {
-                    const fall = m[1] + ')';
-                    if (box.value) box.value = fall; else box.textContent = fall;
-                    box.dispatchEvent(new Event('input', { bubbles: true }));
-                    controlPanel.updateStatus('title', 'completed', fall);
-                    return;
+    async function extractVideoLink() {
+        controlPanel.updateStatus('link', STATUS.ACTIVE, '正在提取视频链接...');
+
+        const maxAttempts = 30;
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+            const linkElement = document.querySelector('div.value.style-scope.ytcp-video-info a[href*="youtu"]');
+
+            if (linkElement) {
+                try {
+                    const url = linkElement.href || linkElement.textContent.trim();
+                    let videoId = '';
+
+                    if (url.includes('youtube.com/shorts/')) {
+                        videoId = url.split('youtube.com/shorts/')[1].split('?')[0];
+                    }
+                    else if (url.includes('youtu.be/')) {
+                        videoId = url.split('youtu.be/')[1].split('?')[0];
+                    }
+                    else if (url.includes('youtube.com/watch?v=')) {
+                        videoId = url.split('v=')[1].split('&')[0];
+                    }
+                    else {
+                        const idMatch = url.match(/[a-zA-Z0-9_-]{11}/);
+                        if (idMatch) videoId = idMatch[0];
+                    }
+
+                    if (videoId) {
+                        const standardLink = `https://youtube.com/watch?v=${videoId}`;
+                        controlPanel.updateStatus('link', STATUS.COMPLETED, `链接已提取: ${standardLink}`);
+                        return standardLink;
+                    }
+                } catch (e) {
+                    console.error('提取视频ID出错:', e);
                 }
             }
+
+            attempts++;
+            await Utils.delay(1000);
         }
-        controlPanel.updateStatus('title', 'failed');
+
+        throw new Error('提取视频链接超时');
     }
 
-    async function noKids() {
-        controlPanel.updateStatus('kids', 'active');
-        const r = await Utils.waitForElement(DOM_SELECTORS.NOT_FOR_KIDS_RADIO, 5000);
-        if (r && r.getAttribute('aria-checked') !== 'true') r.click();
-        controlPanel.updateStatus('kids', 'completed', '已设置非儿童');
-        await Utils.delay(500);
-    }
+    async function autoProcessTitle(fileName) {
+        let attempts = 0;
+        const maxAttempts = 10;
 
-    async function next3() {
-        controlPanel.updateStatus('continue', 'active');
-        let c = 0;
-        while (c < 3) {
-            const b = await Utils.waitForElement(DOM_SELECTORS.NEXT_BUTTON, 3000);
-            if (b && b.getAttribute('aria-disabled') === 'false') { b.click(); c++; await Utils.delay(1500); }
-            else await Utils.delay(800);
+        while (attempts < maxAttempts) {
+            attempts++;
+            const textbox = document.querySelector(DOM_SELECTORS.TITLE_TEXTBOX);
+
+            if (textbox) {
+                try {
+                    const currentContent = textbox.value || textbox.textContent || '';
+                    const originalTitle = currentContent.trim();
+
+                    if (originalTitle.includes('）')) {
+                        controlPanel.updateStatus('title', STATUS.COMPLETED, '标题已处理（跳过）');
+                        return;
+                    }
+
+                    const newTitle = await controlPanel.aiProcessor.processTitle(
+                        originalTitle || fileName.replace(/\.[^/.]+$/, ""),
+                        controlPanel
+                    );
+
+                    if (textbox.value) {
+                        textbox.value = newTitle;
+                        textbox.dispatchEvent(new Event('input', { bubbles: true }));
+                    } else {
+                        textbox.textContent = newTitle;
+                        textbox.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+
+                    controlPanel.updateStatus('title', STATUS.COMPLETED, `AI标题: ${newTitle}`);
+                    return;
+
+                } catch (error) {
+                    console.error('AI 标题处理失败:', error);
+                    const match = (textbox.value || textbox.textContent || '').match(/^([A-Z]{2})/i);
+                    if (match) {
+                        const fallbackTitle = match[1] + ')';
+                        if (textbox.value) {
+                            textbox.value = fallbackTitle;
+                            textbox.dispatchEvent(new Event('input', { bubbles: true }));
+                        } else {
+                            textbox.textContent = fallbackTitle;
+                            textbox.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                        controlPanel.updateStatus('title', STATUS.COMPLETED, `回退标题: ${fallbackTitle}`);
+                        return;
+                    }
+                }
+            }
+
+            await Utils.delay(DELAY.SHORT);
         }
-        controlPanel.updateStatus('continue', 'completed');
+
+        controlPanel.updateStatus('title', STATUS.FAILED, '无法处理标题');
     }
 
-    async function unlisted() {
-        controlPanel.updateStatus('visibility', 'active');
-        for (let i = 0; i < 10; i++) {
-            const r = await Utils.waitForElement(DOM_SELECTORS.UNLISTED_RADIO, 2000);
-            if (r) {
-                if (r.getAttribute('aria-checked') === 'true') break;
-                r.click();
-                await Utils.delay(500);
-                if (r.getAttribute('aria-checked') === 'true') break;
+    async function selectNotForKids() {
+        controlPanel.updateStatus('kids', STATUS.ACTIVE, '正在选择非儿童内容...');
+
+        const radio = await Utils.waitForElement(DOM_SELECTORS.NOT_FOR_KIDS_RADIO, 5000);
+        if (radio && radio.getAttribute('aria-checked') !== 'true') {
+            radio.click();
+            controlPanel.updateStatus('kids', STATUS.COMPLETED, '已设置为非儿童内容');
+        } else {
+            controlPanel.updateStatus('kids', STATUS.COMPLETED, '已是非儿童内容设置');
+        }
+        await Utils.delay(DELAY.SHORT);
+    }
+
+    async function clickContinueThreeTimes() {
+        controlPanel.updateStatus('continue', STATUS.ACTIVE, '正在点击继续按钮...');
+
+        let count = 0;
+        let retryCount = 0;
+        const maxRetries = 5;
+
+        while (count < 3 && retryCount < maxRetries) {
+            const button = await Utils.waitForElement(DOM_SELECTORS.NEXT_BUTTON, 3000);
+
+            if (button && button.getAttribute('aria-disabled') === 'false') {
+                try {
+                    button.click();
+                    count++;
+                    controlPanel.updateStatus('continue', STATUS.ACTIVE, `点击继续 (${count}/3)`);
+
+                    await Utils.delay(DELAY.LONG * 2);
+
+                    const isPageResponsive = await Utils.checkPageResponsiveness();
+                    if (!isPageResponsive) {
+                        throw new Error('页面无响应');
+                    }
+
+                    retryCount = 0;
+                } catch (error) {
+                    console.error('点击继续按钮时出错:', error);
+                    retryCount++;
+                    await Utils.delay(DELAY.MEDIUM * 2);
+                }
             } else {
-                const n = await Utils.waitForElement(DOM_SELECTORS.NEXT_BUTTON, 1000);
-                if (n && n.getAttribute('aria-disabled') === 'false') { n.click(); await Utils.delay(1000); }
+                retryCount++;
+                await Utils.delay(DELAY.MEDIUM);
             }
         }
-        controlPanel.updateStatus('visibility', 'completed', '不公开');
+
+        if (count < 3) {
+            controlPanel.updateStatus('continue', STATUS.FAILED, `只成功点击了 ${count} 次继续按钮`);
+        } else {
+            controlPanel.updateStatus('continue', STATUS.COMPLETED, '成功点击3次继续按钮');
+        }
+
+        await Utils.delay(DELAY.LONG);
     }
 
-    async function getLink() {
-        controlPanel.updateStatus('link', 'active');
-        for (let i = 0; i < 30; i++) {
-            const a = document.querySelector('div.value a[href*="youtu"]');
-            if (a) {
-                const u = a.href || a.textContent.trim();
-                let id = '';
-                if (u.includes('shorts/')) id = u.split('shorts/')[1].split('?')[0];
-                else if (u.includes('youtu.be/')) id = u.split('youtu.be/')[1].split('?')[0];
-                else if (u.includes('v=')) id = u.split('v=')[1].split('&')[0];
-                const final = `https://youtube.com/watch?v=${id}`;
-                controlPanel.updateStatus('link', 'completed', final);
-                return final;
+    async function selectUnlistedOption() {
+        controlPanel.updateStatus('visibility', STATUS.ACTIVE, '正在设置不公开列出...');
+
+        let attempts = 0;
+        const maxAttempts = 10;
+        let success = false;
+
+        while (attempts < maxAttempts && !success) {
+            const radio = await Utils.waitForElement(DOM_SELECTORS.UNLISTED_RADIO, 2000);
+
+            if (radio) {
+                if (radio.getAttribute('aria-checked') === 'true') {
+                    controlPanel.updateStatus('visibility', STATUS.COMPLETED, '已是不公开列出设置');
+                    return;
+                }
+
+                try {
+                    radio.click();
+                    await Utils.delay(DELAY.SHORT);
+
+                    if (radio.getAttribute('aria-checked') === 'true') {
+                        success = true;
+                        controlPanel.updateStatus('visibility', STATUS.COMPLETED, '已设置为不公开列出');
+                    } else {
+                        attempts++;
+                        await Utils.delay(DELAY.MEDIUM);
+                    }
+                } catch (error) {
+                    console.error('设置不公开列出时出错:', error);
+                    attempts++;
+                    await Utils.delay(DELAY.MEDIUM);
+                }
+            } else {
+                const nextButton = await Utils.waitForElement(DOM_SELECTORS.NEXT_BUTTON, 1000);
+                if (nextButton && nextButton.getAttribute('aria-disabled') === 'false') {
+                    nextButton.click();
+                    await Utils.delay(DELAY.LONG);
+                }
+                attempts++;
+                await Utils.delay(DELAY.MEDIUM);
             }
-            await Utils.delay(1000);
         }
-        throw new Error('获取链接超时');
-    }
 
-    async function save() {
-        for (let i = 0; i < 5; i++) {
-            const b = document.querySelector('button[aria-label="保存"]');
-            if (b && b.getAttribute('aria-disabled') === 'false') { b.click(); return true; }
-            await Utils.delay(1000);
-        }
-        throw new Error('保存失败');
-    }
-
-    async function closeDialog() {
-        for (let i = 0; i < 15; i++) {
-            const c = document.querySelector('ytcp-button#close-button button') || document.querySelector('ytcp-icon-button#close-icon-button');
-            if (c) { c.click(); return; }
-            await Utils.delay(500);
+        if (!success) {
+            controlPanel.updateStatus('visibility', STATUS.FAILED, '设置不公开列出失败');
         }
     }
 
-    function removeLogout() {
-        document.querySelectorAll(DOM_SELECTORS.LOGOUT_CONTAINER).forEach(i => i.closest('ytd-compact-link-renderer')?.remove());
+    async function clickSaveButton() {
+        const maxAttempts = 5;
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+            const saveButton = document.querySelector('button[aria-label="保存"]');
+
+            if (saveButton && saveButton.getAttribute('aria-disabled') === 'false') {
+                console.log("找到保存按钮，正在点击...");
+                saveButton.click();
+                return true;
+            }
+
+            attempts++;
+            console.log(`尝试点击保存按钮 (${attempts}/${maxAttempts})...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        throw new Error("无法点击保存按钮：按钮未找到或不可点击");
     }
 
-    function observe() {
-        new MutationObserver(() => removeLogout()).observe(document.body, { childList: true, subtree: true });
+    async function robustCloseDialog() {
+        const maxAttempts = 15;
+        const interval = 500;
+
+        for (let i = 0; i < maxAttempts; i++) {
+            const closeButton = document.querySelector('ytcp-button#close-button button');
+            if (closeButton) {
+                closeButton.click();
+                return;
+            }
+
+            const closeIconButton = document.querySelector('ytcp-icon-button#close-icon-button');
+            if (closeIconButton) {
+                closeIconButton.click();
+                return;
+            }
+
+            const svgCloseButton = document.querySelector('ytcp-icon-button#close-icon-button yt-icon');
+            if (svgCloseButton) {
+                svgCloseButton.click();
+                return;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, interval));
+        }
+        console.error('Close button not found after waiting');
     }
 
-    // 启动
-    const run = _.debounce(init, 500);
-    window.addEventListener('load', run);
-    document.addEventListener('DOMContentLoaded', run);
+    function removeLogoutButton() {
+        document.querySelectorAll(DOM_SELECTORS.LOGOUT_CONTAINER)
+            .forEach(link => link.closest('ytd-compact-link-renderer')?.remove());
+    }
 
-    console.log('%c=== 燕山丰上传助手（远程逻辑）已加载 ==', 'color:#09f');
+    function setupMutationObserver() {
+        new MutationObserver(() => {
+            removeLogoutButton();
+        }).observe(document.body, { childList: true, subtree: true });
+    }
+
+    // ===================== 初始化执行 =====================
+    const init = _.debounce(initScript, 500);
+    window.addEventListener('load', init);
+    document.addEventListener('DOMContentLoaded', init);
+
+    // ============== 油猴脚本加载成功控制台输出 ==============
+    console.log('%c=== 燕山丰快捷上传助手 已成功加载 ===', 'color: #42b983; font-size: 14px; font-weight: bold;');
+    console.log('%c脚本托管地址：GitHub', 'color: #666; font-size: 12px;');
+    console.log('%c运行环境：YouTube Studio', 'color: #666; font-size: 12px;');
+    console.log('%c====================================', 'color: #42b983; font-size: 14px; font-weight: bold;');
+
 })();
