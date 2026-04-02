@@ -485,46 +485,41 @@
 
     const languageCode = match[1].toLowerCase();
     const category = match[2].toLowerCase();
+    const catSelector = `.category-title[data-category="${category}"]`;
 
-    const categorySelector = `.category-title[data-category="${category}"]`;
-    if (!this.linksList.querySelector(categorySelector)) {
-        const categoryTitle = Utils.createElement('div', {
+    // 先创建分类标题
+    if (!this.linksList.querySelector(catSelector)) {
+        const catTitle = Utils.createElement('div', {
             class: 'category-title',
             'data-category': category
         }, category);
-        this.linksList.appendChild(categoryTitle);
+        this.linksList.appendChild(catTitle);
     }
 
-    const categoryTitleEl = this.linksList.querySelector(categorySelector);
-    let nextSibling = categoryTitleEl.nextElementSibling;
-    let langGroupFound = false;
+    // 找到当前分类下，有没有已经存在的相同语言标签
+    const catTitleEl = this.linksList.querySelector(catSelector);
+    let langEl = null;
+    let sibling = catTitleEl.nextElementSibling;
 
-    while (nextSibling && !nextSibling.matches(categorySelector)) {
-        if (
-            nextSibling.matches('.language-code') &&
-            nextSibling.textContent.trim() === languageCode
-        ) {
-            const linkUrl = Utils.createElement('div', { class: 'link-url' }, url);
-            this.linksList.insertBefore(linkUrl, nextSibling.nextSibling);
-            langGroupFound = true;
+    while (sibling && !sibling.classList.contains('category-title')) {
+        if (sibling.classList.contains('language-code') && sibling.textContent.trim() === languageCode) {
+            langEl = sibling;
             break;
         }
-        nextSibling = nextSibling.nextElementSibling;
+        sibling = sibling.nextElementSibling;
     }
 
-    if (!langGroupFound) {
-        const langEl = Utils.createElement('div', {
-            class: 'language-code'
-        }, languageCode);
+    // 有语言：只加链接
+    if (langEl) {
         const linkUrl = Utils.createElement('div', { class: 'link-url' }, url);
-
-        if (categoryTitleEl.nextElementSibling) {
-            this.linksList.insertBefore(langEl, categoryTitleEl.nextElementSibling);
-            this.linksList.insertBefore(linkUrl, langEl.nextElementSibling);
-        } else {
-            this.linksList.appendChild(langEl);
-            this.linksList.appendChild(linkUrl);
-        }
+        this.linksList.insertBefore(linkUrl, langEl.nextSibling);
+    }
+    // 没有语言：新建语言 + 链接
+    else {
+        const newLang = Utils.createElement('div', { class: 'language-code' }, languageCode);
+        const linkUrl = Utils.createElement('div', { class: 'link-url' }, url);
+        this.linksList.insertBefore(newLang, catTitleEl.nextElementSibling);
+        this.linksList.insertBefore(linkUrl, newLang.nextElementSibling);
     }
 
     this.linksList.scrollTop = this.linksList.scrollHeight;
