@@ -614,7 +614,7 @@
 
         async getAITitle(prompt) {
             const data = {
-                model: "ep-20250813143100-7b9vf",
+                model: "doubao-1-5-pro-32k-250115",
                 messages: [{ role: "user", content: prompt }]
             };
 
