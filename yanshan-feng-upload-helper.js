@@ -1032,4 +1032,5 @@
     const init = _.debounce(initScript, 500);
     window.addEventListener('load', init);
     document.addEventListener('DOMContentLoaded', init);
+    console.log("github脚本已加载")
 })();
