@@ -191,6 +191,13 @@
             // 创建面板内容容器
             const content = Utils.createElement('div', { class: 'panel-content' });
 
+// 最后上传时间显示区域
+const lastUploadContainer = Utils.createElement('div', { class: 'last-upload-container' });
+const lastUploadTitle = Utils.createElement('div', { class: 'last-upload-title' }, '频道最后成功上传时间');
+this.lastUploadTimeEl = Utils.createElement('div', { class: 'last-upload-time' }, '暂无记录');
+Utils.appendChildren(lastUploadContainer, lastUploadTitle, this.lastUploadTimeEl);
+content.appendChild(lastUploadContainer);
+        
             // 创建文件列表区域
             const fileListContainer = Utils.createElement('div', { class: 'file-list-container' });
             const fileListTitle = Utils.createElement('div', { class: 'file-list-title' }, '待处理文件列表');
@@ -215,6 +222,8 @@
                 { step: 'close', title: '关闭面板', desc: '正在关闭面板并重置流程...' }
             ];
 
+
+            
             this.statusItems = {};
             steps.forEach((step, index) => {
                 const item = Utils.createElement('div', { class: 'status-item', 'data-step': step.step });
@@ -271,6 +280,8 @@
 
             // 启用拖动功能
             this.enableDrag(this.panel, header);
+
+            this.loadLastUploadTime();
         }
 
         enableDrag(element, dragHandle) {
@@ -343,6 +354,31 @@
     let clipboardText = '';
     let currentLang = '';
 
+// 更新并保存最后上传时间
+updateLastUploadTime() {
+  const now = new Date();
+  const timeStr = now.getFullYear() + '-' +
+    String(now.getMonth() + 1).padStart(2, '0') + '-' +
+    String(now.getDate()).padStart(2, '0') + ' ' +
+    String(now.getHours()).padStart(2, '0') + ':' +
+    String(now.getMinutes()).padStart(2, '0') + ':' +
+    String(now.getSeconds()).padStart(2, '0');
+
+  // 存到本地
+  localStorage.setItem('ytLastSuccessUploadTime', timeStr);
+
+  // 更新面板显示
+  this.lastUploadTimeEl.textContent = timeStr;
+}
+
+// 初始化时读取本地记录
+loadLastUploadTime() {
+  const saved = localStorage.getItem('ytLastSuccessUploadTime');
+  if (saved) {
+    this.lastUploadTimeEl.textContent = saved;
+  }
+}
+             
     this.linksList.childNodes.forEach(child => {
         if (!child.classList) return;
 
@@ -772,6 +808,8 @@
             await robustCloseDialog();
 
             controlPanel.updateFileStatus(fileName, STATUS.COMPLETED);
+
+            controlPanel.updateLastUploadTime();
 
         } catch (error) {
             console.error(`处理文件 ${fileName} 时出错:`, error);
