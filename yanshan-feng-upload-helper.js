@@ -203,7 +203,12 @@
             // 头部
             const header = Utils.createEl('div', { class: 'panel-header' });
             const title = Utils.createEl('div', { class: 'panel-title' });
-            title.innerHTML = `🎬 上传助手 <span class="version">v${SCRIPT_VERSION}</span>`;
+            // ✅ 修复1：替换innerHTML为DOM创建
+            const titleText = document.createTextNode('🎬 上传助手 ');
+            const versionSpan = Utils.createEl('span', { class: 'version' }, `v${SCRIPT_VERSION}`);
+            title.appendChild(titleText);
+            title.appendChild(versionSpan);
+            
             const closeBtn = Utils.createEl('button', { class: 'panel-close' }, '×');
             closeBtn.onclick = () => this.panel.style.display = 'none';
             header.appendChild(title);
@@ -214,14 +219,20 @@
 
             // 1. 文件列表区
             const secFiles = Utils.createEl('div', { class: 'section' });
-            secFiles.innerHTML = '<div class="section-title">待处理文件</div>';
+            // ✅ 修复2：替换innerHTML为DOM创建
+            const fileTitle = Utils.createEl('div', { class: 'section-title' }, '待处理文件');
+            secFiles.appendChild(fileTitle);
+            
             this.fileListContainer = Utils.createEl('div', { class: 'file-list' });
             secFiles.appendChild(this.fileListContainer);
             content.appendChild(secFiles);
 
             // 2. 流程进度区 (简化为横向 dots)
             const secProgress = Utils.createEl('div', { class: 'section' });
-            secProgress.innerHTML = '<div class="section-title">当前进度</div>';
+            // ✅ 修复3：替换innerHTML为DOM创建
+            const progressTitle = Utils.createEl('div', { class: 'section-title' }, '当前进度');
+            secProgress.appendChild(progressTitle);
+            
             this.stepsContainer = Utils.createEl('div', { class: 'steps' });
             this.renderSteps();
             secProgress.appendChild(this.stepsContainer);
@@ -229,7 +240,10 @@
 
             // 3. 链接区
             const secLinks = Utils.createEl('div', { class: 'section' });
-            secLinks.innerHTML = '<div class="section-title">已完成链接</div>';
+            // ✅ 修复4：替换innerHTML为DOM创建
+            const linkTitle = Utils.createEl('div', { class: 'section-title' }, '已完成链接');
+            secLinks.appendChild(linkTitle);
+            
             this.linksContainer = Utils.createEl('div', { class: 'links-box' });
             secLinks.appendChild(this.linksContainer);
             content.appendChild(secLinks);
