@@ -1,1102 +1,529 @@
-// 燕山丰快捷上传 - 业务逻辑（托管于 GitHub）
+// 燕山丰快捷上传 - 业务逻辑 (标题定制优化版)
 (function () {
     'use strict';
 
-    // ===================== 常量定义 =====================
-    const DELAY = {
-        SHORT: 500,
-        MEDIUM: 800,
-        LONG: 1000,
-        EXTRA_LONG: 2000
+    // ===================== 配置区域 =====================
+    // 【重要】每次更新 GitHub 请修改此版本号
+    const SCRIPT_VERSION = '1.2.0'; 
+
+    const CONFIG = {
+        SELECTORS: {
+            PROGRESS_ITEM: '#progress-list .row',
+            EDIT_BUTTON: '#progress-list .edit-button',
+            TITLE_INPUT: '#textbox[slot="input"][contenteditable="true"], ytcp-video-title input, #container.ytcp-video-title input',
+            NOT_FOR_KIDS: 'tp-yt-paper-radio-button[name="VIDEO_MADE_FOR_KIDS_NOT_MFK"]',
+            NEXT_BUTTON: 'ytcp-button#next-button, button[aria-label="继续"], button[aria-label="Continue"]',
+            UNLISTED: 'tp-yt-paper-radio-button[name="UNLISTED"]',
+            SAVE_BUTTON: 'ytcp-button#done-button, ytcp-button[aria-label="保存"], button[aria-label="保存"]',
+            CLOSE_BUTTON: 'ytcp-button#close-button, ytcp-icon-button#close-icon-button, button[aria-label="关闭"]'
+        },
+        DELAYS: {
+            TINY: 300,
+            SHORT: 600,
+            MEDIUM: 1000,
+            LONG: 1500
+        },
+        // 语言映射表，可自行补充需要的语言代码
+        LANG_MAP: {
+            'ES': '西班牙语', 'US': '英语', 'CN': '中文', 'FR': '法语', 'DE': '德语',
+            'JP': '日语', 'BR': '葡萄牙语', 'KR': '韩语', 'GB': '英语', 'RU': '俄语',
+            'IT': '意大利语', 'AR': '阿拉伯语', 'IN': '印地语', 'ID': '印尼语', 'TR': '土耳其语'
+        },
+        // 【可自定义】标题时间格式，YYYY=年 MM=月 DD=日 HH=时 mm=分 ss=秒
+        TITLE_TIME_FORMAT: 'YYYY-MM-DD HH:mm'
     };
 
-    const STATUS = {
-        ACTIVE: 'active',
-        COMPLETED: 'completed',
-        FAILED: 'failed',
-        PENDING: 'pending',
-        UPLOADING: 'uploading',
-        PROCESSING: 'processing'
-    };
-
-    const STATUS_DISPLAY_MAP = {
-        '已达到每日上传数上限': STATUS.FAILED,
-        '正在等待…': STATUS.PENDING,
-        '正在等待...': STATUS.PENDING,
-        '上传完成': STATUS.COMPLETED,
-        '检查完毕': STATUS.COMPLETED,
-        '上传中': STATUS.UPLOADING,
-        '处理中': STATUS.PROCESSING,
-        '失败': STATUS.FAILED,
-        '错误': STATUS.FAILED
-    };
-
-    const LANGUAGE_MAP = {
-        'ES': '西班牙语', 'US': '英语', 'CN': '中文', 'FR': '法语', 'DE': '德语',
-        'JP': '日语', 'BR': '葡萄牙语', 'NL': '荷兰语', 'KR': '韩语', 'GB': '英语',
-        'IT': '意大利语', 'RU': '俄语', 'AR': '阿拉伯语', 'IN': '印地语',
-        'ID': '印尼语', 'TR': '土耳其语', 'SE': '瑞典语', 'FI': '芬兰语',
-        'NO': '挪威语', 'DK': '丹麦语', 'PL': '波兰语', 'HU': '匈牙利语',
-        'CZ': '捷克语', 'GR': '希腊语', 'PT': '葡萄牙语', 'TH': '泰语',
-        'VN': '越南语', 'IL': '希伯来语', 'SA': '阿拉伯语', 'AE': '阿拉伯语',
-        'SG': '英语', 'MY': '马来语', 'PH': '菲律宾语', 'TW': '中文(繁体)',
-        'HK': '中文(繁体)', 'MO': '中文(繁体)', 'CA': '英语', 'CH': '德语',
-        'BE': '荷兰语', 'ZA': '英语', 'MX': '西班牙语', 'CO': '西班牙语',
-        'PE': '西班牙语', 'CL': '西班牙语', 'AT': '德语', 'IE': '英语',
-        'NZ': '英语', 'AU': '英语'
-    };
-
-    const DOM_SELECTORS = {
-        PROGRESS_LIST: '#progress-list',
-        PROGRESS_ITEM: '#progress-list .row',
-        EDIT_BUTTON: '#progress-list .edit-button',
-        TITLE_TEXTBOX: '#textbox[slot="input"][contenteditable="true"], ytcp-video-title input, #container.ytcp-video-title input',
-        NOT_FOR_KIDS_RADIO: 'tp-yt-paper-radio-button[name="VIDEO_MADE_FOR_KIDS_NOT_MFK"]',
-        NEXT_BUTTON: 'ytcp-button#next-button, button[aria-label="继续"], button[aria-label="Continue"]',
-        UNLISTED_RADIO: 'tp-yt-paper-radio-button[name="UNLISTED"]',
-        SAVE_BUTTON: 'ytcp-button#done-button, ytcp-button[aria-label="保存"], button[aria-label="保存"]',
-        SHARE_URL: '#share-url',
-        COPY_BUTTON: 'ytcp-icon-button[aria-label="复制视频链接"]',
-        UPLOAD_STATUS: 'ytcp-video-upload-progress .progress-label',
-        CLOSE_PANEL_BUTTON: 'ytcp-button#close-button, button[aria-label="关闭"], ytcp-icon-button[aria-label="关闭"]',
-        LOGOUT_CONTAINER: 'ytd-compact-link-renderer a[href*="logout"]',
-    };
-
-    // ===================== 工具函数 =====================
+    // ===================== 工具函数库 =====================
+    const $ = (sel, parent = document) => parent.querySelector(sel);
+    const $$ = (sel, parent = document) => Array.from(parent.querySelectorAll(sel));
+    
     const Utils = {
-        createElement(tag, attributes = {}, textContent = '') {
+        createEl(tag, attrs = {}, text = '') {
             const el = document.createElement(tag);
-            Object.entries(attributes).forEach(([attr, value]) => {
-                el.setAttribute(attr, value);
-            });
-            if (textContent) el.textContent = textContent;
+            Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+            if (text) el.textContent = text;
             return el;
         },
 
-        appendChildren(parent, ...children) {
-            children.forEach(child => {
-                if (child) parent.appendChild(child);
-            });
-            return parent;
+        delay(ms) {
+            return new Promise(r => setTimeout(r, ms));
         },
 
-        safeQuerySelector(selector, parent = document) {
-            return parent.querySelector(selector);
+        async waitFor(selector, timeout = 5000, parent = document) {
+            const start = Date.now();
+            while (Date.now() - start < timeout) {
+                const el = $(selector, parent);
+                if (el) return el;
+                await this.delay(150);
+            }
+            return null;
         },
 
-        safeQuerySelectorAll(selector, parent = document) {
-            return Array.from(parent.querySelectorAll(selector));
-        },
-
-        clickElement(element) {
-            if (!element) return false;
-            const innerButton = element.querySelector('button') || element;
-            innerButton.click();
+        click(el) {
+            if (!el) return false;
+            (el.querySelector('button') || el).click();
             return true;
         },
 
-        delay(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
+        // 【新增】时间格式化工具，适配标题时间生成
+        formatTime(format = CONFIG.TITLE_TIME_FORMAT, date = new Date()) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+
+            return format
+                .replace('YYYY', year)
+                .replace('MM', month)
+                .replace('DD', day)
+                .replace('HH', hours)
+                .replace('mm', minutes)
+                .replace('ss', seconds);
         },
 
-        waitForElement(selector, timeout = 5000) {
-            return new Promise((resolve) => {
-                const startTime = Date.now();
-
-                const check = () => {
-                    const element = this.safeQuerySelector(selector);
-                    if (element) {
-                        resolve(element);
-                    } else if (Date.now() - startTime >= timeout) {
-                        resolve(null);
-                    } else {
-                        setTimeout(check, 200);
-                    }
-                };
-
-                check();
-            });
-        },
-
-        checkPageResponsiveness() {
-            return new Promise((resolve) => {
-                const timer = setTimeout(() => {
-                    resolve(false);
-                }, 10000);
-
-                const check = () => {
-                    if (document.querySelector('body:not([aria-busy="true"])')) {
-                        clearTimeout(timer);
-                        resolve(true);
-                    }
-                };
-
-                check();
-                const interval = setInterval(check, 500);
-
-                setTimeout(() => {
-                    clearInterval(interval);
-                }, 10000);
-            });
-        },
-
-        normalizeStatus(rawStatus) {
-            if (STATUS_DISPLAY_MAP[rawStatus]) {
-                return STATUS_DISPLAY_MAP[rawStatus];
-            }
-
-            for (const [key, value] of Object.entries(STATUS_DISPLAY_MAP)) {
-                if (rawStatus.includes(key)) {
-                    return value;
-                }
-            }
-
-            return STATUS.PENDING;
-        },
-
-        getStatusDisplayText(status) {
-            const statusTextMap = {
-                [STATUS.ACTIVE]: "处理中...",
-                [STATUS.COMPLETED]: "已完成",
-                [STATUS.FAILED]: "失败",
-                [STATUS.PENDING]: "等待中",
-                [STATUS.UPLOADING]: "上传中...",
-                [STATUS.PROCESSING]: "处理中..."
-            };
-            return statusTextMap[status] || status;
+        // 【新增】从文件名提取语言代码，兼容原命名规则
+        extractLangCode(fileName) {
+            // 匹配文件名开头的2位字母语言代码（支持大小写）
+            const cleanName = fileName.replace(/\.[^/.]+$/, '').trim(); // 去掉文件后缀
+            const langMatch = cleanName.match(/^([A-Za-z]{2})/i);
+            
+            if (!langMatch) return null;
+            const langCode = langMatch[1].toUpperCase();
+            // 验证是否在语言映射表中，避免无效代码
+            return CONFIG.LANG_MAP[langCode] ? langCode : null;
         }
     };
 
-    // ===================== 控制面板类 =====================
+    // ===================== 样式注入 (精简美化版) =====================
+    GM_addStyle(`
+        #yt-helper-panel {
+            position: fixed; top: 20px; right: 20px; z-index: 9999;
+            width: 340px; background: #fff; border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden; user-select: none;
+            display: flex; flex-direction: column;
+            max-height: 85vh;
+        }
+        .panel-header {
+            background: #202124; color: #fff; padding: 12px 16px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .panel-title { font-size: 15px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px; }
+        .panel-title .version { 
+            font-size: 11px; background: #3c4043; padding: 2px 6px; border-radius: 4px; 
+            color: #8ab4f8; font-weight: 500;
+        }
+        .panel-close {
+            background: transparent; border: none; color: #9aa0a6; font-size: 20px;
+            cursor: pointer; width: 28px; height: 28px; padding: 0; line-height: 1;
+        }
+        .panel-content { padding: 0; overflow-y: auto; flex: 1; }
+        .panel-content::-webkit-scrollbar { width: 6px; }
+        .panel-content::-webkit-scrollbar-thumb { background: #dadce0; border-radius: 3px; }
+        
+        /* 通用区块 */
+        .section { padding: 12px 16px; border-bottom: 1px solid #f1f3f4; }
+        .section-title { font-size: 12px; font-weight: 600; color: #5f6368; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        /* 文件列表 */
+        .file-list { display: flex; flex-direction: column; gap: 6px; }
+        .file-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 10px; background: #f8f9fa; border-radius: 6px; font-size: 13px;
+        }
+        .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px; color: #202124; }
+        .file-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+        .file-status.completed { background: #e6f4ea; color: #137333; }
+        .file-status.processing, .file-status.active { background: #e8f0fe; color: #1a73e8; }
+        .file-status.failed { background: #fce8e6; color: #c5221f; }
+
+        /* 进度条 */
+        .steps { display: flex; justify-content: space-between; margin-top: 4px; }
+        .step {
+            display: flex; flex-direction: column; align-items: center; flex: 1;
+        }
+        .step-dot {
+            width: 18px; height: 18px; border-radius: 50%; background: #e8eaed;
+            display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #5f6368;
+            transition: all 0.2s;
+        }
+        .step.active .step-dot { background: #1a73e8; color: #fff; transform: scale(1.1); }
+        .step.completed .step-dot { background: #34a853; color: #fff; }
+        .step-line { height: 2px; background: #e8eaed; flex: 1; margin: 8px 4px 0; position: relative; top: -10px; }
+        
+        /* 链接区域 */
+        .links-box { background: #f1f3f4; border-radius: 8px; padding: 10px; max-height: 150px; overflow-y: auto; }
+        .link-item { font-size: 12px; margin-bottom: 6px; display: flex; flex-direction: column; }
+        .link-item:last-child { margin-bottom: 0; }
+        .link-name { color: #5f6368; margin-bottom: 2px; }
+        .link-url { color: #1a73e8; word-break: break-all; text-decoration: none; }
+        
+        /* 底部按钮 */
+        .panel-footer { padding: 12px 16px; background: #fff; display: flex; gap: 10px; }
+        .btn {
+            flex: 1; padding: 10px 0; border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .btn-primary { background: #1a73e8; color: #fff; }
+        .btn-primary:hover { background: #1765cc; }
+        .btn-secondary { background: #f1f3f4; color: #5f6368; }
+        .btn-secondary:hover { background: #e8eaed; }
+        
+        /* 简单通知 */
+        .yt-toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: #202124; color: #fff; padding: 10px 20px; border-radius: 8px;
+            font-size: 14px; z-index: 10001; animation: fadeIn 0.2s;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    `);
+
+    // ===================== 主控制面板类 =====================
     class ControlPanel {
         constructor() {
             this.panel = null;
-            this.statusItems = {};
             this.fileItems = {};
+            this.currentStepIndex = 0;
+            this.steps = ['标题', '儿童', '继续', '可见性', '链接', '保存'];
+            this.init();
+        }
+
+        init() {
             this.createPanel();
-            this.setupEventListeners();
-            this.aiProcessor = new AITitleProcessor();
+            this.setupDrag();
         }
 
         createPanel() {
-            // 创建面板容器
-            this.panel = Utils.createElement('div', { id: 'yt-helper-panel', class: 'visible' });
+            // 主容器
+            this.panel = Utils.createEl('div', { id: 'yt-helper-panel' });
 
-            // 创建面板头部
-            const header = Utils.createElement('div', { class: 'panel-header' });
-            const title = Utils.createElement('h3', { class: 'panel-title' }, 'YouTube 自动上传助手');
-            const closeBtn = Utils.createElement('button', { class: 'panel-close' }, '×');
-            Utils.appendChildren(header, title, closeBtn);
+            // 头部
+            const header = Utils.createEl('div', { class: 'panel-header' });
+            const title = Utils.createEl('div', { class: 'panel-title' });
+            title.innerHTML = `🎬 上传助手 <span class="version">v${SCRIPT_VERSION}</span>`;
+            const closeBtn = Utils.createEl('button', { class: 'panel-close' }, '×');
+            closeBtn.onclick = () => this.panel.style.display = 'none';
+            header.appendChild(title);
+            header.appendChild(closeBtn);
 
-            // 创建面板内容容器
-            const content = Utils.createElement('div', { class: 'panel-content' });
+            // 内容区
+            const content = Utils.createEl('div', { class: 'panel-content' });
 
-// 最后上传时间显示区域
-const lastUploadContainer = Utils.createElement('div', { class: 'last-upload-container' });
-const lastUploadTitle = Utils.createElement('div', { class: 'last-upload-title' }, '频道最后成功上传时间');
-this.lastUploadTimeEl = Utils.createElement('div', { class: 'last-upload-time' }, '暂无记录');
-Utils.appendChildren(lastUploadContainer, lastUploadTitle, this.lastUploadTimeEl);
-content.appendChild(lastUploadContainer);
-        
-            // 创建文件列表区域
-            const fileListContainer = Utils.createElement('div', { class: 'file-list-container' });
-            const fileListTitle = Utils.createElement('div', { class: 'file-list-title' }, '待处理文件列表');
-            this.fileListContainer = Utils.createElement('div', { class: 'file-list' });
+            // 1. 文件列表区
+            const secFiles = Utils.createEl('div', { class: 'section' });
+            secFiles.innerHTML = '<div class="section-title">待处理文件</div>';
+            this.fileListContainer = Utils.createEl('div', { class: 'file-list' });
+            secFiles.appendChild(this.fileListContainer);
+            content.appendChild(secFiles);
 
-            Utils.appendChildren(fileListContainer, fileListTitle, this.fileListContainer);
-            content.appendChild(fileListContainer);
+            // 2. 流程进度区 (简化为横向 dots)
+            const secProgress = Utils.createEl('div', { class: 'section' });
+            secProgress.innerHTML = '<div class="section-title">当前进度</div>';
+            this.stepsContainer = Utils.createEl('div', { class: 'steps' });
+            this.renderSteps();
+            secProgress.appendChild(this.stepsContainer);
+            content.appendChild(secProgress);
 
-            // 创建状态跟踪区域
-            const statusContainer = Utils.createElement('div', { class: 'status-container' });
-            const statusTitle = Utils.createElement('div', { class: 'status-title' }, '上传处理流程');
-            const statusList = Utils.createElement('div', { class: 'status-list' });
+            // 3. 链接区
+            const secLinks = Utils.createEl('div', { class: 'section' });
+            secLinks.innerHTML = '<div class="section-title">已完成链接</div>';
+            this.linksContainer = Utils.createEl('div', { class: 'links-box' });
+            secLinks.appendChild(this.linksContainer);
+            content.appendChild(secLinks);
 
-            // 创建状态步骤
-            const steps = [
-                { step: 'title', title: '标题处理', desc: '等待处理视频标题...' },
-                { step: 'kids', title: '儿童内容设置', desc: '等待选择非儿童内容...' },
-                { step: 'continue', title: '继续操作', desc: '等待点击继续按钮...' },
-                { step: 'visibility', title: '视频可见性', desc: '等待设置不公开列出...' },
-                { step: 'link', title: '获取视频链接', desc: '等待视频处理完成...' },
-                { step: 'save', title: '保存视频', desc: '等待保存操作...' },
-                { step: 'close', title: '关闭面板', desc: '正在关闭面板并重置流程...' }
-            ];
+            // 底部
+            const footer = Utils.createEl('div', { class: 'panel-footer' });
+            const btnStart = Utils.createEl('button', { class: 'btn btn-primary' }, '开始处理');
+            const btnReset = Utils.createEl('button', { class: 'btn btn-secondary' }, '重置');
+            btnStart.onclick = () => startProcessing();
+            btnReset.onclick = () => this.reset();
+            footer.appendChild(btnStart);
+            footer.appendChild(btnReset);
 
-
-            
-            this.statusItems = {};
-            steps.forEach((step, index) => {
-                const item = Utils.createElement('div', { class: 'status-item', 'data-step': step.step });
-                const icon = Utils.createElement('div', { class: 'status-icon' }, (index + 1).toString());
-                const content = Utils.createElement('div', { class: 'status-content' });
-                const titleEl = Utils.createElement('div', { class: 'status-step' }, step.title);
-                const descEl = Utils.createElement('div', { class: 'status-desc' }, step.desc);
-
-                Utils.appendChildren(content, titleEl, descEl);
-                Utils.appendChildren(item, icon, content);
-                statusList.appendChild(item);
-
-                this.statusItems[step.step] = {
-                    element: item,
-                    title: titleEl,
-                    desc: descEl,
-                    icon: icon
-                };
-            });
-
-            Utils.appendChildren(statusContainer, statusTitle, statusList);
-            content.appendChild(statusContainer);
-
-            // 创建日志区域
-            this.createLogSection(content);
-
-            // 创建链接汇总区域
-            const linksContainer = Utils.createElement('div', { class: 'links-container' });
-            const linksTitle = Utils.createElement('div', { class: 'links-title' }, '处理完成的视频链接');
-            const linksSummary = Utils.createElement('div', { class: 'links-summary' });
-            this.linksList = Utils.createElement('div', { class: 'links-list' });
-            this.copyAllBtn = Utils.createElement('button', { class: 'copy-all-btn' }, '复制所有链接到剪贴板');
-
-            Utils.appendChildren(linksSummary, this.linksList, this.copyAllBtn);
-            Utils.appendChildren(linksContainer, linksTitle, linksSummary);
-            content.appendChild(linksContainer);
-
-            // 创建操作按钮区域
-            const actions = Utils.createElement('div', { class: 'panel-actions' });
-            const startBtn = Utils.createElement('button', {
-                class: 'panel-btn panel-btn-primary',
-                id: 'start-process'
-            }, '🚀 开始处理');
-            const resetBtn = Utils.createElement('button', {
-                class: 'panel-btn panel-btn-secondary',
-                id: 'reset-process'
-            }, '🔄 重置流程');
-
-            Utils.appendChildren(actions, startBtn, resetBtn);
-
-            // 组装完整面板
-            Utils.appendChildren(this.panel, header, content, actions);
+            this.panel.appendChild(header);
+            this.panel.appendChild(content);
+            this.panel.appendChild(footer);
             document.body.appendChild(this.panel);
-
-            // 启用拖动功能
-            this.enableDrag(this.panel, header);
-
-            this.loadLastUploadTime();
         }
 
-        enableDrag(element, dragHandle) {
-            let isDragging = false;
-            let offsetX, offsetY;
-
-            dragHandle.addEventListener('mousedown', (e) => {
-                if (e.target.closest('.panel-close')) return;
-
-                isDragging = true;
-                const elementRect = element.getBoundingClientRect();
-                offsetX = e.clientX - elementRect.left;
-                offsetY = e.clientY - elementRect.top;
-
-                element.style.transition = 'none';
-                element.style.willChange = 'transform';
-                document.body.style.userSelect = 'none';
-
-                e.preventDefault();
-            });
-
-            const handleMove = (e) => {
-                if (!isDragging) return;
-
-                requestAnimationFrame(() => {
-                    const x = e.clientX - offsetX;
-                    const y = e.clientY - offsetY;
-
-                    const maxX = window.innerWidth - element.offsetWidth;
-                    const maxY = window.innerHeight - element.offsetHeight;
-
-                    element.style.left = `${Math.min(Math.max(0, x), maxX)}px`;
-                    element.style.top = `${Math.min(Math.max(0, y), maxY)}px`;
-                    element.style.right = 'auto';
-                });
-            }
-
-            const stopMoving = () => {
-                if (isDragging) {
-                    isDragging = false;
-                    element.style.transition = 'all 0.3s ease';
-                    element.style.willChange = 'auto';
-                    document.body.style.userSelect = '';
+        renderSteps() {
+            this.stepsContainer.innerHTML = '';
+            this.steps.forEach((text, index) => {
+                if (index > 0) {
+                    this.stepsContainer.appendChild(Utils.createEl('div', { class: 'step-line' }));
                 }
-            }
-
-            document.addEventListener('mousemove', handleMove);
-            document.addEventListener('mouseup', stopMoving);
-
-            dragHandle.addEventListener('dragstart', (e) => {
-                e.preventDefault();
+                const step = Utils.createEl('div', { class: 'step', 'data-index': index });
+                const dot = Utils.createEl('div', { class: 'step-dot' }, (index + 1).toString());
+                step.appendChild(dot);
+                this.stepsContainer.appendChild(step);
             });
         }
 
-        setupEventListeners() {
-            this.panel.addEventListener('click', (e) => {
-                const target = e.target;
-
-                if (target.closest('.panel-close')) {
-                    this.panel.classList.remove('visible');
-                } else if (target.closest('#start-process')) {
-                    startProcessing();
-                } else if (target.closest('#reset-process')) {
-                    this.resetProcess();
-                }
+        setStep(index, status = 'active') { // status: active, completed
+            const dots = this.stepsContainer.querySelectorAll('.step');
+            dots.forEach((dot, i) => {
+                dot.classList.remove('active', 'completed');
+                if (i < index) dot.classList.add('completed');
+                if (i === index) dot.classList.add(status);
             });
-
-            // 复制所有链接
-         this.copyAllBtn.addEventListener('click', () => {
-    let clipboardText = '';
-    let currentLang = '';
-
-// 更新并保存最后上传时间
-updateLastUploadTime() {
-  const now = new Date();
-  const timeStr = now.getFullYear() + '-' +
-    String(now.getMonth() + 1).padStart(2, '0') + '-' +
-    String(now.getDate()).padStart(2, '0') + ' ' +
-    String(now.getHours()).padStart(2, '0') + ':' +
-    String(now.getMinutes()).padStart(2, '0') + ':' +
-    String(now.getSeconds()).padStart(2, '0');
-
-  // 存到本地
-  localStorage.setItem('ytLastSuccessUploadTime', timeStr);
-
-  // 更新面板显示
-  this.lastUploadTimeEl.textContent = timeStr;
-}
-
-// 初始化时读取本地记录
-loadLastUploadTime() {
-  const saved = localStorage.getItem('ytLastSuccessUploadTime');
-  if (saved) {
-    this.lastUploadTimeEl.textContent = saved;
-  }
-}
-             
-    this.linksList.childNodes.forEach(child => {
-        if (!child.classList) return;
-
-        if (child.classList.contains('category-title')) {
-            clipboardText += '\n' + child.textContent.trim() + '\n';
-            currentLang = '';
-        }
-        else if (child.classList.contains('language-code')) {
-            currentLang = child.textContent.trim();
-            clipboardText += currentLang + '\n';
-        }
-        else if (child.classList.contains('link-url')) {
-            clipboardText += child.textContent.trim() + '\n';
-        }
-        else if (child.classList.contains('link-item')) {
-            const name = child.querySelector('.link-name')?.textContent.trim() || '';
-            const url = child.querySelector('.link-url')?.textContent.trim() || '';
-            if (name && url) {
-                clipboardText += `${name}: ${url}\n`;
-            }
-        }
-    });
-
-    clipboardText = clipboardText.trim();
-    GM_setClipboard(clipboardText, 'text');
-    this.showNotification('✅ 已复制所有链接到剪贴板（按品类分组）');
-});
-
-        resetProcess() {
-            isProcessing = false;
-            titleProcessed = false;
-            currentFileIndex = 0;
-            processedLinks = [];
-
-            this.linksList.innerHTML = '';
-
-            Object.keys(this.statusItems).forEach(step => {
-                const item = this.statusItems[step];
-                item.element.classList.remove(STATUS.ACTIVE, STATUS.COMPLETED, STATUS.FAILED);
-                item.icon.textContent = (Object.keys(this.statusItems).indexOf(step) + 1).toString();
-                item.desc.textContent = '等待处理...';
-            });
-
-            Object.keys(this.fileItems).forEach(fileName => {
-                const item = this.fileItems[fileName];
-                item.element.classList.remove('active', 'completed', 'failed');
-                item.status.textContent = '';
-            });
-
-            this.showNotification('🔄  流程已重置');
         }
 
-        updateFileList(files) {
-            while (this.fileListContainer.firstChild) {
-                this.fileListContainer.removeChild(this.fileListContainer.firstChild);
-            }
+        updateFiles(files) {
+            this.fileListContainer.innerHTML = '';
             this.fileItems = {};
-
-            files.forEach(file => {
-                const fileItem = Utils.createElement('div', {
-                    class: 'file-item',
-                    'data-filename': file.name
-                });
-
-                const fileName = Utils.createElement('div', { class: 'file-name' }, file.name);
-                const fileStatus = Utils.createElement('div', { class: 'file-status' }, file.status);
-
-                Utils.appendChildren(fileItem, fileName, fileStatus);
-                this.fileListContainer.appendChild(fileItem);
-
-                this.fileItems[file.name] = {
-                    element: fileItem,
-                    name: fileName,
-                    status: fileStatus
-                };
-
-                this.updateFileStatus(file.name, Utils.normalizeStatus(file.status));
+            files.forEach(f => {
+                const item = Utils.createEl('div', { class: 'file-item', 'data-name': f.name });
+                const name = Utils.createEl('div', { class: 'file-name' }, f.name);
+                const status = Utils.createEl('div', { class: 'file-status' }, f.status || '等待中');
+                item.appendChild(name);
+                item.appendChild(status);
+                this.fileListContainer.appendChild(item);
+                this.fileItems[f.name] = { el: item, statusEl: status };
             });
         }
 
-        updateFileStatus(fileName, status) {
-            const fileItem = this.fileItems[fileName];
-            if (!fileItem) return;
-
-            fileItem.element.classList.remove(
-                STATUS.ACTIVE,
-                STATUS.COMPLETED,
-                STATUS.FAILED,
-                STATUS.PENDING,
-                STATUS.UPLOADING,
-                STATUS.PROCESSING
-            );
-
-            fileItem.element.classList.add(status);
-            fileItem.status.textContent = Utils.getStatusDisplayText(status);
-        }
-
-        updateStatus(step, status, description = '') {
-            const item = this.statusItems[step];
+        setFileStatus(name, status) {
+            const map = { 'processing': '处理中', 'completed': '已完成', 'failed': '失败' };
+            const item = this.fileItems[name];
             if (!item) return;
-
-            item.element.classList.remove(STATUS.ACTIVE, STATUS.COMPLETED, STATUS.FAILED);
-            item.desc.textContent = description || item.desc.textContent;
-
-            if (status === STATUS.ACTIVE) {
-                item.element.classList.add(STATUS.ACTIVE);
-                item.desc.textContent = description || '处理中...';
-            } else if (status === STATUS.COMPLETED) {
-                item.element.classList.add(STATUS.COMPLETED);
-                item.icon.textContent = '✓';
-                item.desc.textContent = description || '已完成';
-            } else if (status === STATUS.FAILED) {
-                item.element.classList.add(STATUS.FAILED);
-                item.icon.textContent = '×';
-                item.desc.textContent = description || '失败';
-            }
-
-            item.element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            item.statusEl.textContent = map[status] || status;
+            item.statusEl.className = `file-status ${status}`;
         }
 
-        showNotification(message) {
-            const notification = Utils.createElement('div', { class: 'panel-notification' }, message);
-            document.body.appendChild(notification);
-
-            setTimeout(() => {
-                notification.remove();
-            }, 3000);
+        addLink(name, url) {
+            const wrap = Utils.createEl('div', { class: 'link-item' });
+            wrap.appendChild(Utils.createEl('div', { class: 'link-name' }, name));
+            const a = Utils.createEl('a', { class: 'link-url', href: url, target: '_blank' }, url);
+            wrap.appendChild(a);
+            this.linksContainer.appendChild(wrap);
+            this.linksContainer.scrollTop = this.linksContainer.scrollHeight;
         }
 
-        addProcessedLink(fileName, url) {
-    const match = fileName.match(/^([A-Z]{2})([A-Za-z]+)(\d*)\./i);
-    if (!match) {
-        const linkItem = Utils.createElement('div', { class: 'link-item' });
-        const linkName = Utils.createElement('div', { class: 'link-name' }, fileName);
-        const linkUrl = Utils.createElement('div', { class: 'link-url' }, url);
-        Utils.appendChildren(linkItem, linkName, linkUrl);
-        this.linksList.appendChild(linkItem);
-        return;
-    }
-
-    const languageCode = match[1].toLowerCase();
-    const category = match[2].toLowerCase();
-    const catSelector = `.category-title[data-category="${category}"]`;
-
-    // 先创建分类标题
-    if (!this.linksList.querySelector(catSelector)) {
-        const catTitle = Utils.createElement('div', {
-            class: 'category-title',
-            'data-category': category
-        }, category);
-        this.linksList.appendChild(catTitle);
-    }
-
-    // 找到当前分类下，有没有已经存在的相同语言标签
-    const catTitleEl = this.linksList.querySelector(catSelector);
-    let langEl = null;
-    let sibling = catTitleEl.nextElementSibling;
-
-    while (sibling && !sibling.classList.contains('category-title')) {
-        if (sibling.classList.contains('language-code') && sibling.textContent.trim() === languageCode) {
-            langEl = sibling;
-            break;
-        }
-        sibling = sibling.nextElementSibling;
-    }
-
-    // 有语言：只加链接
-    if (langEl) {
-        const linkUrl = Utils.createElement('div', { class: 'link-url' }, url);
-        this.linksList.insertBefore(linkUrl, langEl.nextSibling);
-    }
-    // 没有语言：新建语言 + 链接
-    else {
-        const newLang = Utils.createElement('div', { class: 'language-code' }, languageCode);
-        const linkUrl = Utils.createElement('div', { class: 'link-url' }, url);
-        this.linksList.insertBefore(newLang, catTitleEl.nextElementSibling);
-        this.linksList.insertBefore(linkUrl, newLang.nextElementSibling);
-    }
-
-    this.linksList.scrollTop = this.linksList.scrollHeight;
-}
-
-        createLogSection(contentContainer) {
-            this.logContainer = Utils.createElement('div', { class: 'log-container' });
-            const logTitle = Utils.createElement('div', { class: 'log-title' }, '处理日志');
-            this.logToggle = Utils.createElement('span', { class: 'log-toggle' }, '显示详细');
-            this.logContent = Utils.createElement('div', { class: 'log-content' });
-
-            Utils.appendChildren(logTitle, this.logToggle);
-            Utils.appendChildren(this.logContainer, logTitle, this.logContent);
-
-            let linksContainer = contentContainer.querySelector('.links-container');
-            if (!linksContainer) {
-                contentContainer.appendChild(this.logContainer);
-            } else {
-                if (linksContainer.parentNode === contentContainer) {
-                    contentContainer.insertBefore(this.logContainer, linksContainer);
-                } else {
-                    contentContainer.appendChild(this.logContainer);
-                }
-            }
-
-            logTitle.addEventListener('click', () => {
-                this.logContent.classList.toggle('expanded');
-                this.logToggle.textContent = this.logContent.classList.contains('expanded') ? '隐藏详细' : '显示详细';
-            });
+        reset() {
+            this.renderSteps();
+            this.linksContainer.innerHTML = '';
+            this.toast('已重置');
         }
 
-        addLog(message, type = 'info') {
-            const logItem = Utils.createElement('div', {
-                class: `log-item ${type}`
-            }, `[${new Date().toLocaleTimeString()}] ${message}`);
-
-            this.logContent.appendChild(logItem);
-
-            if (this.logContent.classList.contains('expanded')) {
-                this.logContent.scrollTop = this.logContent.scrollHeight;
-            }
-
-            if (type === 'error') {
-                this.logContent.classList.add('expanded');
-                this.logToggle.textContent = '隐藏详细';
-            }
+        toast(msg) {
+            const t = Utils.createEl('div', { class: 'yt-toast' }, msg);
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 2500);
         }
 
-        addAILog(message, type = 'info') {
-            this.addLog(message, type);
-        }
-    }
+        setupDrag() {
+            const header = this.panel.querySelector('.panel-header');
+            let isDrag = false, startX, startY, startLeft, startTop;
 
-    // ===================== AI标题处理器 =====================
-    class AITitleProcessor {
-        constructor() {
-            this.apiKey = "6869437c-0d6b-42ee-8c6d-4c865ca9b475";
-            this.apiUrl = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
-        }
-
-        async processTitle(originalTitle, controlPanel) {
-            try {
-                controlPanel.addAILog('开始解析标题...');
-
-                const { languageCode, appName } = this.extractTitleParts(originalTitle);
-                if (!languageCode || !appName) {
-                    throw new Error('标题格式不符合要求（示例: ESCUSTOMUSE1）');
-                }
-
-                const languageName = LANGUAGE_MAP[languageCode] || languageCode;
-                controlPanel.addAILog(`识别到: 语言=${languageName}, 应用=${appName}`);
-
-                const prompt = this.getDefaultPromptTemplate()
-                    .replace(/{appName}/g, appName)
-                    .replace(/{languageName}/g, languageName)
-                    .replace(/{languageCode}/g, languageCode);
-
-                controlPanel.addAILog(`请求AI生成标题: ${prompt}`);
-
-                const aiTitle = await this.getAITitle(prompt);
-                controlPanel.addAILog(`AI 生成标题: ${aiTitle}`);
-
-                return `${languageCode}）${aiTitle}`;
-            } catch (error) {
-                controlPanel.addAILog(`处理失败: ${error.message}`, 'error');
-                throw error;
-            }
-        }
-
-        getDefaultPromptTemplate() {
-            return `为{appName} App生成一个吸引人的{languageName}推广标题，并附上一句简短的推广文案。要求：
-1. 标题要简洁有力，突出App的核心价值或独特卖点
-2. 推广文案要能激发用户兴趣，控制在15字以内
-3. 直接给出结果，不需要额外解释
-
-示例格式:
-[吸引人的标题] - [简短有力的推广文案]`;
-        }
-
-        extractTitleParts(title) {
-            const cleanTitle = title.replace(/[^a-zA-Z0-9]/g, '');
-            const match = cleanTitle.match(/^([A-Z]{2})([A-Za-z]+)(\d*)$/i);
-
-            if (!match) {
-                throw new Error(`标题格式无效，示例: "ESCUSTOMUSE1" → "ES"（语言）+ "CUSTOMUSE"（App）+ "1"（序号）`);
-            }
-
-            const languageCode = match[1].toUpperCase();
-            const appName = match[2].replace(/[^a-zA-Z]/g, '').toLowerCase();
-            const number = match[3] || '';
-
-            return { languageCode, appName, number };
-        }
-
-        async getAITitle(prompt) {
-            const data = {
-                model: "doubao-1-5-pro-32k-250115",
-                messages: [{ role: "user", content: prompt }]
-            };
-
-            const headers = {
-                Authorization: `Bearer ${this.apiKey}`,
-                "Content-Type": "application/json"
-            };
-
-            const response = await fetch(this.apiUrl, {
-                method: "POST",
-                headers,
-                body: JSON.stringify(data)
+            header.addEventListener('mousedown', (e) => {
+                if (e.target.tagName === 'BUTTON') return;
+                isDrag = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                const rect = this.panel.getBoundingClientRect();
+                startLeft = rect.left;
+                startTop = rect.top;
+                this.panel.style.transition = 'none';
             });
 
-            if (!response.ok) {
-                throw new Error(`AI请求失败: ${response.status}`);
-            }
+            window.addEventListener('mousemove', (e) => {
+                if (!isDrag) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                this.panel.style.left = `${startLeft + dx}px`;
+                this.panel.style.top = `${startTop + dy}px`;
+                this.panel.style.right = 'auto';
+            });
 
-            const result = await response.json();
-            const content = result.choices?.[0]?.message?.content || '';
-            return content.trim();
+            window.addEventListener('mouseup', () => {
+                isDrag = false;
+                this.panel.style.transition = '';
+            });
         }
     }
 
-    // ===================== 主逻辑部分 =====================
-    let isProcessing = false;
-    let titleProcessed = false;
-    let currentFileIndex = 0;
-    let processedLinks = [];
+    // ===================== 业务逻辑 =====================
     let controlPanel = null;
+    let isProcessing = false;
+    let processedLinks = [];
 
-    function initScript() {
+    // 初始化
+    function init() {
         if (window.location.hostname !== 'studio.youtube.com') return;
-
         controlPanel = new ControlPanel();
-        removeLogoutButton();
-        setupMutationObserver();
         monitorUploads();
     }
 
     function monitorUploads() {
-        const checkInterval = setInterval(() => {
-            const progressItems = Utils.safeQuerySelectorAll(DOM_SELECTORS.PROGRESS_ITEM);
-
-            if (progressItems.length > 0) {
-                const newFiles = progressItems.map(item => {
-                    const name = item.querySelector('.progress-title').textContent.trim();
-                    const status = item.querySelector('.progress-status-text').textContent.trim();
-                    const progressBar = item.querySelector('.progress-bar');
-                    const isUploaded = progressBar && progressBar.style.width === '100%';
-                    return { name, status, element: item, isUploaded };
-                });
-
-                controlPanel.updateFileList(newFiles);
-
-                newFiles.forEach(file => {
-                    if (file.isUploaded && !processedLinks.some(l => l.name === file.name)) {
-                        if (!isProcessing) {
-                            startProcessing();
-                        }
-                    }
-                });
+        setInterval(() => {
+            const rows = $$(CONFIG.SELECTORS.PROGRESS_ITEM);
+            if (rows.length > 0) {
+                const files = rows.map(item => ({
+                    name: item.querySelector('.progress-title')?.textContent.trim() || '未知文件',
+                    status: item.querySelector('.progress-status-text')?.textContent.trim() || '上传中',
+                    element: item
+                }));
+                controlPanel.updateFiles(files);
             }
-        }, 2000);
+        }, 1500);
     }
 
-    function startProcessing() {
+    async function startProcessing() {
         if (isProcessing) return;
-
+        const rows = $$(CONFIG.SELECTORS.PROGRESS_ITEM);
+        if (rows.length === 0) return controlPanel.toast('⚠️ 没有找到文件');
+        
         isProcessing = true;
-        const progressItems = Utils.safeQuerySelectorAll(DOM_SELECTORS.PROGRESS_ITEM);
+        processedLinks = [];
+        
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const fileName = row.querySelector('.progress-title')?.textContent.trim();
+            
+            // 跳过已处理
+            if (processedLinks.find(l => l.name === fileName)) continue;
 
-        if (progressItems.length === 0) {
-            controlPanel.showNotification('⚠️  未找到上传文件');
-            isProcessing = false;
-            return;
+            controlPanel.setFileStatus(fileName, 'processing');
+            
+            // 点击编辑
+            const editBtn = $(CONFIG.SELECTORS.EDIT_BUTTON, row);
+            if (editBtn) {
+                editBtn.click();
+                await Utils.delay(CONFIG.DELAYS.MEDIUM);
+                await processFile(fileName);
+            } else {
+                controlPanel.setFileStatus(fileName, 'failed');
+            }
         }
 
-        currentFileIndex = 0;
-        processNextFile();
-    }
-
-    async function processNextFile() {
-        const progressItems = Utils.safeQuerySelectorAll(DOM_SELECTORS.PROGRESS_ITEM);
-
-        if (currentFileIndex >= progressItems.length) {
-            isProcessing = false;
-
-            const allLinks = processedLinks.map(l => `${l.name}:  ${l.url}`).join('\n');
-            GM_setClipboard(allLinks, 'text');
-
-            controlPanel.showNotification('✅  所有文件处理完成，链接已复制到剪贴板');
-            return;
-        }
-
-        const currentItem = progressItems[currentFileIndex];
-        const fileName = currentItem.querySelector('.progress-title').textContent.trim();
-
-        if (processedLinks.some(l => l.name === fileName)) {
-            currentFileIndex++;
-            processNextFile();
-            return;
-        }
-
-        controlPanel.updateFileStatus(fileName, 'processing', true);
-
-        const editButton = currentItem.querySelector(DOM_SELECTORS.EDIT_BUTTON);
-        if (editButton) {
-            editButton.click();
-            await Utils.delay(DELAY.LONG);
-            await processCurrentFile(fileName);
-        } else {
-            controlPanel.updateFileStatus(fileName, 'failed', false);
-            currentFileIndex++;
-            processNextFile();
+        isProcessing = false;
+        controlPanel.toast('✅ 全部处理完成');
+        
+        // 复制所有链接
+        if (processedLinks.length > 0) {
+            const text = processedLinks.map(l => `${l.name}: ${l.url}`).join('\n');
+            GM_setClipboard(text, 'text');
         }
     }
 
-    async function processCurrentFile(fileName) {
+    async function processFile(fileName) {
         try {
-            await autoProcessTitle(fileName);
-            await selectNotForKids();
-            await clickContinueThreeTimes();
-            await selectUnlistedOption();
-            const link = await extractVideoLink();
-            await clickSaveButton();
+            // 1. 标题处理（核心修改：按需求生成 语言）时间 格式）
+            controlPanel.setStep(0);
+            await processTitle(fileName);
+            controlPanel.setStep(0, 'completed');
 
+            // 2. 儿童设置
+            controlPanel.setStep(1);
+            const kidsBtn = await Utils.waitFor(CONFIG.SELECTORS.NOT_FOR_KIDS, 4000);
+            if (kidsBtn && kidsBtn.getAttribute('aria-checked') !== 'true') kidsBtn.click();
+            await Utils.delay(CONFIG.DELAYS.TINY);
+            controlPanel.setStep(1, 'completed');
 
+            // 3. 三次下一步
+            controlPanel.setStep(2);
+            for (let k = 0; k < 3; k++) {
+                const btn = await Utils.waitFor(CONFIG.SELECTORS.NEXT_BUTTON, 5000);
+                if (btn) {
+                    // 等待按钮可点击
+                    let tries = 0;
+                    while (btn.getAttribute('aria-disabled') === 'true' && tries < 10) {
+                        await Utils.delay(300);
+                        tries++;
+                    }
+                    btn.click();
+                    await Utils.delay(CONFIG.DELAYS.SHORT);
+                }
+            }
+            controlPanel.setStep(2, 'completed');
+
+            // 4. 不公开列出
+            controlPanel.setStep(3);
+            const unlisted = await Utils.waitFor(CONFIG.SELECTORS.UNLISTED, 5000);
+            if (unlisted) {
+                if (unlisted.getAttribute('aria-checked') !== 'true') unlisted.click();
+                await Utils.delay(CONFIG.DELAYS.TINY);
+            }
+            controlPanel.setStep(3, 'completed');
+
+            // 5. 获取链接
+            controlPanel.setStep(4);
+            const link = await getVideoLink();
+            controlPanel.setStep(4, 'completed');
+
+            // 6. 保存
+            controlPanel.setStep(5);
+            const saveBtn = await Utils.waitFor(CONFIG.SELECTORS.SAVE_BUTTON, 5000);
+            if (saveBtn) saveBtn.click();
+            controlPanel.setStep(5, 'completed');
+
+            // 完成
             processedLinks.push({ name: fileName, url: link });
-            controlPanel.addProcessedLink(fileName, link);
+            controlPanel.addLink(fileName, link);
+            controlPanel.setFileStatus(fileName, 'completed');
 
-            await Utils.delay(5000);
-            await robustCloseDialog();
+            // 关闭弹窗
+            await Utils.delay(CONFIG.DELAYS.LONG);
+            const closeBtn = $(CONFIG.SELECTORS.CLOSE_BUTTON);
+            if (closeBtn) closeBtn.click();
 
-            controlPanel.updateFileStatus(fileName, STATUS.COMPLETED);
-
-            controlPanel.updateLastUploadTime();
-
-        } catch (error) {
-            console.error(`处理文件 ${fileName} 时出错:`, error);
-            controlPanel.updateFileStatus(fileName, STATUS.FAILED);
-        } finally {
-            currentFileIndex++;
-            processNextFile();
+        } catch (err) {
+            console.error(err);
+            controlPanel.setFileStatus(fileName, 'failed');
+            controlPanel.toast(`❌ ${fileName} 处理失败`);
         }
     }
 
-    async function extractVideoLink() {
-        controlPanel.updateStatus('link', STATUS.ACTIVE, '正在提取视频链接...');
+    // ===================== 【核心修改】标题处理函数 =====================
+    async function processTitle(fileName) {
+        const input = await Utils.waitFor(CONFIG.SELECTORS.TITLE_INPUT, 3000);
+        if (!input) return;
+        
+        // 1. 提取语言代码
+        const langCode = Utils.extractLangCode(fileName);
+        // 兜底：提取不到语言时，默认用「未知」
+        const finalLang = langCode || '未知';
 
-        const maxAttempts = 30;
-        let attempts = 0;
+        // 2. 生成处理时间（当前执行时间）
+        const processTime = Utils.formatTime();
 
-        while (attempts < maxAttempts) {
-            const linkElement = document.querySelector('div.value.style-scope.ytcp-video-info a[href*="youtu"]');
+        // 3. 拼接最终标题：语言）时间
+        const finalTitle = `${finalLang}）${processTime}`;
 
-            if (linkElement) {
-                try {
-                    const url = linkElement.href || linkElement.textContent.trim();
-                    let videoId = '';
-
-                    if (url.includes('youtube.com/shorts/')) {
-                        videoId = url.split('youtube.com/shorts/')[1].split('?')[0];
-                    }
-                    else if (url.includes('youtu.be/')) {
-                        videoId = url.split('youtu.be/')[1].split('?')[0];
-                    }
-                    else if (url.includes('youtube.com/watch?v=')) {
-                        videoId = url.split('v=')[1].split('&')[0];
-                    }
-                    else {
-                        const idMatch = url.match(/[a-zA-Z0-9_-]{11}/);
-                        if (idMatch) videoId = idMatch[0];
-                    }
-
-                    if (videoId) {
-                        const standardLink = `https://youtube.com/watch?v=${videoId}`;
-                        controlPanel.updateStatus('link', STATUS.COMPLETED, `链接已提取: ${standardLink}`);
-                        return standardLink;
-                    }
-                } catch (e) {
-                    console.error('提取视频ID出错:', e);
-                }
-            }
-
-            attempts++;
-            await Utils.delay(1000);
-        }
-
-        throw new Error('提取视频链接超时');
-    }
-
-    async function autoProcessTitle(fileName) {
-        let attempts = 0;
-        const maxAttempts = 10;
-
-        while (attempts < maxAttempts) {
-            attempts++;
-            const textbox = document.querySelector(DOM_SELECTORS.TITLE_TEXTBOX);
-
-            if (textbox) {
-                try {
-                    const currentContent = textbox.value || textbox.textContent || '';
-                    const originalTitle = currentContent.trim();
-
-                    if (originalTitle.includes('）')) {
-                        controlPanel.updateStatus('title', STATUS.COMPLETED, '标题已处理（跳过）');
-                        return;
-                    }
-
-                    const newTitle = await controlPanel.aiProcessor.processTitle(
-                        originalTitle || fileName.replace(/\.[^/.]+$/, ""),
-                        controlPanel
-                    );
-
-                    if (textbox.value) {
-                        textbox.value = newTitle;
-                        textbox.dispatchEvent(new Event('input', { bubbles: true }));
-                    } else {
-                        textbox.textContent = newTitle;
-                        textbox.dispatchEvent(new Event('input', { bubbles: true }));
-                    }
-
-                    controlPanel.updateStatus('title', STATUS.COMPLETED, `AI标题: ${newTitle}`);
-                    return;
-
-                } catch (error) {
-                    console.error('AI 标题处理失败:', error);
-                    const match = (textbox.value || textbox.textContent || '').match(/^([A-Z]{2})/i);
-                    if (match) {
-                        const fallbackTitle = match[1] + ')';
-                        if (textbox.value) {
-                            textbox.value = fallbackTitle;
-                            textbox.dispatchEvent(new Event('input', { bubbles: true }));
-                        } else {
-                            textbox.textContent = fallbackTitle;
-                            textbox.dispatchEvent(new Event('input', { bubbles: true }));
-                        }
-                        controlPanel.updateStatus('title', STATUS.COMPLETED, `回退标题: ${fallbackTitle}`);
-                        return;
-                    }
-                }
-            }
-
-            await Utils.delay(DELAY.SHORT);
-        }
-
-        controlPanel.updateStatus('title', STATUS.FAILED, '无法处理标题');
-    }
-
-    async function selectNotForKids() {
-        controlPanel.updateStatus('kids', STATUS.ACTIVE, '正在选择非儿童内容...');
-
-        const radio = await Utils.waitForElement(DOM_SELECTORS.NOT_FOR_KIDS_RADIO, 5000);
-        if (radio && radio.getAttribute('aria-checked') !== 'true') {
-            radio.click();
-            controlPanel.updateStatus('kids', STATUS.COMPLETED, '已设置为非儿童内容');
+        // 4. 写入输入框，触发input事件保证页面识别
+        if (input.value !== undefined) {
+            input.value = finalTitle;
         } else {
-            controlPanel.updateStatus('kids', STATUS.COMPLETED, '已是非儿童内容设置');
+            input.textContent = finalTitle;
         }
-        await Utils.delay(DELAY.SHORT);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+
+        // 日志记录，方便排查
+        controlPanel.toast(`✅ 标题已生成: ${finalTitle}`);
     }
 
-    async function clickContinueThreeTimes() {
-        controlPanel.updateStatus('continue', STATUS.ACTIVE, '正在点击继续按钮...');
-
-        let count = 0;
-        let retryCount = 0;
-        const maxRetries = 5;
-
-        while (count < 3 && retryCount < maxRetries) {
-            const button = await Utils.waitForElement(DOM_SELECTORS.NEXT_BUTTON, 3000);
-
-            if (button && button.getAttribute('aria-disabled') === 'false') {
-                try {
-                    button.click();
-                    count++;
-                    controlPanel.updateStatus('continue', STATUS.ACTIVE, `点击继续 (${count}/3)`);
-
-                    await Utils.delay(DELAY.LONG * 2);
-
-                    const isPageResponsive = await Utils.checkPageResponsiveness();
-                    if (!isPageResponsive) {
-                        throw new Error('页面无响应');
-                    }
-
-                    retryCount = 0;
-                } catch (error) {
-                    console.error('点击继续按钮时出错:', error);
-                    retryCount++;
-                    await Utils.delay(DELAY.MEDIUM * 2);
-                }
-            } else {
-                retryCount++;
-                await Utils.delay(DELAY.MEDIUM);
+    async function getVideoLink() {
+        for (let i = 0; i < 30; i++) {
+            // 尝试多种选择器，兼容不同页面结构
+            const a = document.querySelector('a[href*="youtu.be"], a[href*="watch?v="]');
+            if (a && a.href) {
+                let url = a.href;
+                // 标准化链接格式
+                const idMatch = url.match(/(youtu\.be\/|watch\?v=)([a-zA-Z0-9_-]{11})/);
+                if (idMatch) return `https://youtube.com/watch?v=${idMatch[2]}`;
+                return url;
             }
+            await Utils.delay(500);
         }
-
-        if (count < 3) {
-            controlPanel.updateStatus('continue', STATUS.FAILED, `只成功点击了 ${count} 次继续按钮`);
-        } else {
-            controlPanel.updateStatus('continue', STATUS.COMPLETED, '成功点击3次继续按钮');
-        }
-
-        await Utils.delay(DELAY.LONG);
+        throw new Error('获取链接超时');
     }
 
-    async function selectUnlistedOption() {
-        controlPanel.updateStatus('visibility', STATUS.ACTIVE, '正在设置不公开列出...');
-
-        let attempts = 0;
-        const maxAttempts = 10;
-        let success = false;
-
-        while (attempts < maxAttempts && !success) {
-            const radio = await Utils.waitForElement(DOM_SELECTORS.UNLISTED_RADIO, 2000);
-
-            if (radio) {
-                if (radio.getAttribute('aria-checked') === 'true') {
-                    controlPanel.updateStatus('visibility', STATUS.COMPLETED, '已是不公开列出设置');
-                    return;
-                }
-
-                try {
-                    radio.click();
-                    await Utils.delay(DELAY.SHORT);
-
-                    if (radio.getAttribute('aria-checked') === 'true') {
-                        success = true;
-                        controlPanel.updateStatus('visibility', STATUS.COMPLETED, '已设置为不公开列出');
-                    } else {
-                        attempts++;
-                        await Utils.delay(DELAY.MEDIUM);
-                    }
-                } catch (error) {
-                    console.error('设置不公开列出时出错:', error);
-                    attempts++;
-                    await Utils.delay(DELAY.MEDIUM);
-                }
-            } else {
-                const nextButton = await Utils.waitForElement(DOM_SELECTORS.NEXT_BUTTON, 1000);
-                if (nextButton && nextButton.getAttribute('aria-disabled') === 'false') {
-                    nextButton.click();
-                    await Utils.delay(DELAY.LONG);
-                }
-                attempts++;
-                await Utils.delay(DELAY.MEDIUM);
-            }
-        }
-
-        if (!success) {
-            controlPanel.updateStatus('visibility', STATUS.FAILED, '设置不公开列出失败');
-        }
-    }
-
-    async function clickSaveButton() {
-        const maxAttempts = 5;
-        let attempts = 0;
-
-        while (attempts < maxAttempts) {
-            const saveButton = document.querySelector('button[aria-label="保存"]');
-
-            if (saveButton && saveButton.getAttribute('aria-disabled') === 'false') {
-                console.log("找到保存按钮，正在点击...");
-                saveButton.click();
-                return true;
-            }
-
-            attempts++;
-            console.log(`尝试点击保存按钮 (${attempts}/${maxAttempts})...`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-
-        throw new Error("无法点击保存按钮：按钮未找到或不可点击");
-    }
-
-    async function robustCloseDialog() {
-        const maxAttempts = 15;
-        const interval = 500;
-
-        for (let i = 0; i < maxAttempts; i++) {
-            const closeButton = document.querySelector('ytcp-button#close-button button');
-            if (closeButton) {
-                closeButton.click();
-                return;
-            }
-
-            const closeIconButton = document.querySelector('ytcp-icon-button#close-icon-button');
-            if (closeIconButton) {
-                closeIconButton.click();
-                return;
-            }
-
-            const svgCloseButton = document.querySelector('ytcp-icon-button#close-icon-button yt-icon');
-            if (svgCloseButton) {
-                svgCloseButton.click();
-                return;
-            }
-
-            await new Promise(resolve => setTimeout(resolve, interval));
-        }
-        console.error('Close button not found after waiting');
-    }
-
-    function removeLogoutButton() {
-        document.querySelectorAll(DOM_SELECTORS.LOGOUT_CONTAINER)
-            .forEach(link => link.closest('ytd-compact-link-renderer')?.remove());
-    }
-
-    function setupMutationObserver() {
-        new MutationObserver(() => {
-            removeLogoutButton();
-        }).observe(document.body, { childList: true, subtree: true });
-    }
-
-    // ===================== 初始化执行 =====================
-    const init = _.debounce(initScript, 500);
-    window.addEventListener('load', init);
-    document.addEventListener('DOMContentLoaded', init);
-
-    // ============== 油猴脚本加载成功控制台输出 ==============
-    console.log('%c=== 燕山丰快捷上传助手 已成功加载 ===', 'color: #42b983; font-size: 14px; font-weight: bold;');
-    console.log('%c脚本托管地址：GitHub', 'color: #666; font-size: 12px;');
-    console.log('%c运行环境：YouTube Studio', 'color: #666; font-size: 12px;');
-    console.log('%c====================================', 'color: #42b983; font-size: 14px; font-weight: bold;');
+    // 安全启动，避免重复初始化
+    const safeInit = _.debounce(init, 800);
+    window.addEventListener('load', safeInit);
+    if (document.readyState === 'complete') init();
 
 })();
